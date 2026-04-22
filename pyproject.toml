@@ -1,0 +1,30 @@
+[project]
+name = "bookextractor"
+version = "0.1.0"
+description = "Extract structured metadata from scanned Telugu/Hindi/English PDFs"
+authors = [
+    { name = "Gemini CLI", email = "gemini-cli@google.com" }
+]
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "pymupdf>=1.22.0",
+    "easyocr>=1.7.0",
+    "pillow>=9.5.0",
+    "pydantic>=2.0.0",
+    "httpx>=0.24.0",
+    "llama-cpp-python>=0.2.0",
+    "typer>=0.9.0",
+    "python-multipart>=0.0.6",
+    "torch>=2.0.0",
+    "opencv-python>=4.7.0",
+]
+readme = "README.md"
+requires-python = ">=3.10"
+
+[project.scripts]
+bookextractor = "bookextractor.main:cli_app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
