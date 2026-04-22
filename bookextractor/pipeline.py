@@ -9,7 +9,7 @@ from .image_utils import crop_regions, crop_bbox, combine_regions
 from .ocr import OCRScanner
 from .external_api import lookup_isbn
 
-DEFAULT_MODEL_PATH = "/home/praneethashish/.cache/huggingface/hub/models--unsloth--gemma-4-E4B-it-GGUF/snapshots/ce152932ac27bc40bc9c727386760424d50bb456/gemma-4-E4B-it-Q4_K_M.gguf"
+DEFAULT_MODEL_PATH = os.getenv("GEMMA_MODEL_PATH", "/home/praneethashish/.cache/huggingface/hub/models--unsloth--gemma-4-E4B-it-GGUF/snapshots/ce152932ac27bc40bc9c727386760424d50bb456/gemma-4-E4B-it-Q4_K_M.gguf")
 
 class ExtractionPipeline:
     def __init__(self, model_path: str = DEFAULT_MODEL_PATH):

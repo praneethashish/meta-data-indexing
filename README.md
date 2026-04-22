@@ -51,6 +51,27 @@ uv run bookextractor --api
 - **Health Check**: `GET /health`
 - **Extract**: `POST /extract` (Multipart file upload)
 
+## 🐳 Docker Support
+
+`bookextractor` is optimized for Docker with a slim image and volume-mounted models.
+
+### Run with Docker Compose (Recommended)
+
+This method mounts your local models to the container to keep the image size small.
+
+```bash
+docker compose up --build -d
+```
+
+The API will be available at `http://localhost:8000`.
+
+### Manual Docker Build
+
+```bash
+docker build -t bookextractor .
+docker run -p 8000:8000 -v /path/to/model:/app/models/gemma.gguf bookextractor
+```
+
 ## 🏗 Architecture
 
 1.  **Smart Selection**: Analyzes the first 7 pages (where metadata usually lives).

@@ -1,6 +1,7 @@
 stages:
   - lint
   - test
+  - build
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
@@ -33,4 +34,14 @@ test:
     - python -m pytest tests/
   only:
     - merge_requests
+    - main
+
+docker-build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build .
+  only:
     - main

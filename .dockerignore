@@ -1,0 +1,11 @@
+__pycache__/
+.venv/
+.env
+*.pdf
+outputs/
+.ruff_cache/
+.pytest_cache/
+*.gguf
+.cache/
+.git/
+bookextractor.egg-info/
