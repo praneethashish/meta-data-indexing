@@ -3,7 +3,7 @@ name = "bookextractor"
 version = "0.1.0"
 description = "Extract structured metadata from scanned Telugu/Hindi/English PDFs"
 authors = [
-    { name = "Gemini CLI", email = "gemini-cli@google.com" }
+    { name = "Ashish", email = "praneeth.ashish@gmail.com" }
 ]
 dependencies = [
     "fastapi>=0.100.0",
@@ -16,10 +16,9 @@ dependencies = [
     "llama-cpp-python>=0.2.0",
     "typer>=0.9.0",
     "python-multipart>=0.0.6",
-    "torch>=2.0.0",
-    "opencv-python>=4.7.0",
+    "numpy<2",
+    "opencv-python-headless>=4.7.0",
 ]
-readme = "README.md"
 requires-python = ">=3.10"
 
 [project.scripts]
@@ -28,3 +27,5 @@ bookextractor = "bookextractor.main:cli_app"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+[tool.hatch.build.targets.wheel]
+packages = ["bookextractor"]

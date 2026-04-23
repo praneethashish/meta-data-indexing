@@ -1,4 +1,6 @@
+import os
 import json
+from collections.abc import Iterator
 import fitz
 from PIL import Image
 from typing import List, Dict, Any
@@ -9,7 +11,7 @@ from .image_utils import crop_regions, crop_bbox, combine_regions
 from .ocr import OCRScanner
 from .external_api import lookup_isbn
 
-DEFAULT_MODEL_PATH = os.getenv("GEMMA_MODEL_PATH", "/home/praneethashish/.cache/huggingface/hub/models--unsloth--gemma-4-E4B-it-GGUF/snapshots/ce152932ac27bc40bc9c727386760424d50bb456/gemma-4-E4B-it-Q4_K_M.gguf")
+DEFAULT_MODEL_PATH = os.getenv("GEMMA_MODEL_PATH", "/app/models/model.gguf")
 
 class ExtractionPipeline:
     def __init__(self, model_path: str = DEFAULT_MODEL_PATH):
@@ -35,7 +37,7 @@ class ExtractionPipeline:
         for idx in page_indices:
             page = doc[idx]
             pix = get_page_image(page)
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
             
             # Adaptive Region Extraction
             kw_bboxes = extract_keyword_bboxes(page)
@@ -107,8 +109,17 @@ Text:
 <|assistant|>
 """
         try:
-            output = self.llm(prompt, max_tokens=256, stop=["<|end|>", "\n\n"], echo=False)
-            text_out = output['choices'][0]['text'].strip()
+            output = self.llm(
+                prompt,
+                max_tokens=256,
+                stop=["<|end|>", "\n\n"],
+                echo=False,
+                stream=False,
+            )
+            if isinstance(output, Iterator):
+                return {}
+
+            text_out = output["choices"][0]["text"].strip()
             # Try to find JSON in output
             start = text_out.find('{')
             end = text_out.rfind('}') + 1
