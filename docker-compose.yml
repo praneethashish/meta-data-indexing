@@ -4,10 +4,13 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Mount the Gemma model from your host cache to the container
-      - /home/praneethashish/.cache/huggingface/hub/models--unsloth--gemma-4-E4B-it-GGUF/snapshots/ce152932ac27bc40bc9c727386760424d50bb456/gemma-4-E4B-it-Q4_K_M.gguf:/app/models/gemma-4-E4B-it-Q4_K_M.gguf:ro
-      # Mount EasyOCR models to avoid re-downloading
-      - /home/praneethashish/.EasyOCR:/root/.EasyOCR
+      # Persist downloaded models in the repository-local models directory.
+      - ./models:/app/models
+      # Persist EasyOCR cache between runs without hardcoding a user home path.
+      - easyocr-cache:/root/.EasyOCR
     environment:
-      - GEMMA_MODEL_PATH=/app/models/gemma-4-E4B-it-Q4_K_M.gguf
+      - VLM_MODEL_PATH=/app/models/gemma-4-E4B-it-Q4_K_M.gguf
     restart: unless-stopped
+
+volumes:
+  easyocr-cache:

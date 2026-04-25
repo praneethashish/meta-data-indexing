@@ -31,9 +31,24 @@ uv pip install -e .
 
 ### CLI
 
+On first run, BookExtractor automatically downloads `gemma-4-E4B-it-Q4_K_M.gguf` from `unsloth/gemma-4-E4B-it-GGUF` into `./models` if it is missing.
+
+Projection (`MMPROJ`) is optional and only used/downloaded when you set projection env vars.
+
 Extract metadata directly to a JSON file:
 ```bash
 uv run bookextractor <input.pdf> <output.json>
+```
+
+Optional overrides:
+```bash
+# Use existing local files
+export VLM_MODEL_PATH=/absolute/path/to/model.gguf
+export MMPROJ_MODEL_PATH=/absolute/path/to/mmproj.gguf
+
+# Or customize download URLs
+export VLM_MODEL_URL=https://.../model.gguf
+export MMPROJ_MODEL_URL=https://.../mmproj.gguf
 ```
 
 Enable benchmark mode for debug info:

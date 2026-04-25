@@ -3,7 +3,7 @@ name = "bookextractor"
 version = "0.1.0"
 description = "Extract structured metadata from scanned Telugu/Hindi/English PDFs"
 authors = [
-    { name = "Ashish", email = "praneeth.ashish@gmail.com" }
+    { name = "name", email = "name@example.com" }
 ]
 dependencies = [
     "fastapi>=0.100.0",
@@ -13,7 +13,7 @@ dependencies = [
     "pillow>=9.5.0",
     "pydantic>=2.0.0",
     "httpx>=0.24.0",
-    "llama-cpp-python>=0.2.0",
+    "llama-cpp-python>=0.3.1",
     "typer>=0.9.0",
     "python-multipart>=0.0.6",
     "numpy<2",
