@@ -66,4 +66,4 @@ disallow_untyped_defs = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "--cov=bookextractor --cov-report=term-missing"
+addopts = "--cov=bookextractor --cov-report=term-missing --cov-fail-under=95"
