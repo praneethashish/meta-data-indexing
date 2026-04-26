@@ -92,15 +92,15 @@ class ExtractionPipeline:
 
         self.llm = Llama(model_path=effective_model_path, n_ctx=2048, verbose=False)
 
-    async def process_pdf(self, pdf_path: str, benchmark: bool = False) -> dict[str, Any]:
+    async def process_pdf(self, pdf_path: str, benchmark: bool = False) -> Dict[str, Any]:
         # Call vParse OCR API
         vparse_response = await parse_pdf_via_vparse(pdf_path)
-
+        
         # Extract text from vParse response
         # vParse returns a dict where results are indexed by filename
-        filename = os.path.basename(pdf_path).rsplit(".", 1)[0]
+        filename = os.path.basename(pdf_path).rsplit('.', 1)[0]
         result_data = vparse_response.get("results", {}).get(filename, {})
-
+        
         full_text = result_data.get("md_content", "")
         if not full_text:
             # Fallback to content_list if md_content is missing
