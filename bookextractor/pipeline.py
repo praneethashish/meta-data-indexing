@@ -15,6 +15,8 @@ from .image_utils import combine_regions, crop_bbox, crop_regions
 from .models import BenchmarkResult, BookMetadata, ConfidenceScores
 from .ocr import OCRScanner
 from .pdf_utils import extract_keyword_bboxes, get_page_image
+from .vparse_client import parse_pdf_via_vparse
+from .validation import extract_isbn_candidates
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "models"))
@@ -93,62 +95,50 @@ class ExtractionPipeline:
 
         self.llm = Llama(model_path=effective_model_path, n_ctx=2048, verbose=False)
 
-    async def process_pdf(self, pdf_path: str, benchmark: bool = False) -> dict[str, Any]:
-        doc = fitz.open(pdf_path)
-        # Select ONLY first 7 pages as requested
-        page_indices = list(range(min(7, len(doc))))
+    async def process_pdf(self, pdf_path: str, benchmark: bool = False) -> Dict[str, Any]:
+        # Call vParse OCR API
+        vparse_response = await parse_pdf_via_vparse(pdf_path)
+        
+        # Extract text from vParse response
+        # vParse returns a dict where results are indexed by filename
+        filename = os.path.basename(pdf_path).rsplit('.', 1)[0]
+        result_data = vparse_response.get("results", {}).get(filename, {})
+        
+        full_text = result_data.get("md_content", "")
+        if not full_text:
+            # Fallback to content_list if md_content is missing
+            content_list = result_data.get("content_list", [])
+            if isinstance(content_list, list):
+                full_text = "\n".join([item.get("text", "") for item in content_list if isinstance(item, dict)])
+            elif isinstance(content_list, str):
+                full_text = content_list
 
-        all_candidates: dict[str, list[str]] = {
-            "title": [],
-            "author": [],
-            "publisher": [],
-            "published_date": [],
-            "isbn": [],
+        return await self.extract_from_text(full_text, benchmark=benchmark)
+
+    async def process_text_file(self, file_path: str, benchmark: bool = False) -> Dict[str, Any]:
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return await self.extract_from_text(content, benchmark=benchmark)
+
+    async def extract_from_text(self, text: str, benchmark: bool = False) -> Dict[str, Any]:
+        # OCR for ISBN from text
+        isbns = extract_isbn_candidates(text)
+        
+        # LLM Semantic Extraction
+        llm_result = self.extract_semantic_fields(text)
+        
+        final_data = {
+            "title": llm_result.get("title"),
+            "author": llm_result.get("author"),
+            "publisher": llm_result.get("publisher"),
+            "published_date": llm_result.get("published_date"),
+            "isbn": None
         }
-
-        debug_info: dict[str, Any] = {
-            "pages_used": page_indices,
-            "isbn_candidates": [],
-            "ocr_text_snippets": [],
-            "vl_raw_outputs": [],
-        }
-
-        for idx in page_indices:
-            page = doc[idx]
-            pix = get_page_image(page)
-            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-
-            # Adaptive Region Extraction
-            kw_bboxes = extract_keyword_bboxes(page)
-            kw_crops = [crop_bbox(img, rect, page.rect) for rect in kw_bboxes]
-            std_crops = crop_regions(img)
-            all_crops = combine_regions(std_crops, kw_crops)
-
-            # OCR for ISBN and general text
-            isbns = self.ocr.find_isbns(all_crops)
-            all_candidates["isbn"].extend(isbns)
-            debug_info["isbn_candidates"].extend(isbns)
-
-            # Extract full text for LLM from standard crops or full page
-            full_text = self.ocr.scan_image(img)
-            debug_info["ocr_text_snippets"].append(full_text[:500])
-
-            # LLM Semantic Extraction
-            llm_result = self.extract_semantic_fields(full_text)
-            debug_info["vl_raw_outputs"].append(llm_result)
-
-            for field in ["title", "author", "publisher", "published_date"]:
-                if llm_result.get(field):
-                    all_candidates[field].append(llm_result[field])
-
-        # Field-wise Merge
-        final_data = self.merge_candidates(all_candidates)
 
         # ISBN Validation & External lookup
         isbn = None
-        if all_candidates["isbn"]:
-            # Pick first valid ISBN
-            isbn = all_candidates["isbn"][0]
+        if isbns:
+            isbn = isbns[0]
             ext_data = await lookup_isbn(isbn)
             for k, v in ext_data.items():
                 if v:  # Override if external data is available
@@ -157,6 +147,8 @@ class ExtractionPipeline:
         final_data["isbn"] = isbn
 
         # Confidence Scoring
+        all_candidates = {k: [v] for k, v in final_data.items() if k != "isbn"}
+        all_candidates["isbn"] = isbns
         confidence = self.calculate_confidence(final_data, all_candidates, bool(isbn))
 
         result = BookMetadata(
@@ -167,6 +159,12 @@ class ExtractionPipeline:
             published_date=final_data.get("published_date"),
             confidence=confidence,
         )
+
+        debug_info = {
+            "isbn_candidates": isbns,
+            "llm_raw_output": llm_result,
+            "text_snippet": text[:500]
+        }
 
         if benchmark:
             return BenchmarkResult(result=result, debug=debug_info).dict()
