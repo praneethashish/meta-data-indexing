@@ -45,6 +45,15 @@ repos:
 
   - repo: local
     hooks:
+      - id: vulture
+        name: vulture
+        entry: .venv/bin/vulture
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: ["bookextractor/", "--min-confidence", "80"]
+        stages: [pre-commit]
+
       - id: pytest-coverage
         name: pytest-coverage
         entry: .venv/bin/pytest
@@ -52,4 +61,4 @@ repos:
         pass_filenames: false
         always_run: true
         args: ["tests/", "--cov=bookextractor", "--cov-report=term-missing"]
-        stages: [pre-push]
+        stages: [pre-commit, pre-push]

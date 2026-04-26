@@ -27,6 +27,7 @@ lint:
     - ruff check . # Covers linting and dead code
     - ruff format --check .
     - mypy bookextractor/
+    - vulture bookextractor/ --min-confidence 80
 
 test:
   stage: test
