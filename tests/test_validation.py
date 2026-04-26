@@ -1,4 +1,3 @@
-import pytest
 from bookextractor.validation import validate_isbn, extract_isbn_candidates
 
 def test_validate_isbn10():
