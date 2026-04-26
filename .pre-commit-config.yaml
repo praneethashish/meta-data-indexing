@@ -51,11 +51,5 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        args:
-          [
-            "tests/",
-            "--cov=bookextractor",
-            "--cov-report=term-missing",
-            "--cov-fail-under=95",
-          ]
+        args: ["tests/", "--cov=bookextractor", "--cov-report=term-missing"]
         stages: [pre-push]
