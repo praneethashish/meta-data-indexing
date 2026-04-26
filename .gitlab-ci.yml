@@ -1,46 +1,57 @@
 stages:
   - lint
+  - type-check
   - test
   - build
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
 
 cache:
   paths:
     - .cache/pip
+    - .cache/uv
     - .venv/
+
+before_script:
+  - curl -LsSf https://astral.sh/uv/install.sh | sh
+  - export PATH="$HOME/.local/bin:$PATH"
+  - uv venv
+  - source .venv/bin/activate
+  - uv pip install -e .
 
 lint:
   stage: lint
   image: python:3.10
-  before_script:
-    - pip install ruff
   script:
     - ruff check .
+    - ruff format --check .
 
-# Note: Tests requiring the LLM/GGUF model would need 
-# a runner with GPU/sufficient RAM and the model cached.
+type-check:
+  stage: type-check
+  image: python:3.10
+  script:
+    - mypy bookextractor/
+
 test:
   stage: test
   image: python:3.10
-  before_script:
-    - curl -LsSf https://astral.sh/uv/install.sh | sh
-    - source $HOME/.cargo/env
-    - uv venv
-    - source .venv/bin/activate
-    - uv pip install -e .
   script:
-    - python -m pytest tests/
-  only:
-    - merge_requests
-    - main
+    - pytest tests/ --cov=bookextractor --cov-report=term --cov-report=xml
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)/'
 
 docker-build:
   stage: build
   image: docker:latest
   services:
     - docker:dind
+  before_script: [] # Skip uv install for docker build
   script:
     - docker build .
   only:

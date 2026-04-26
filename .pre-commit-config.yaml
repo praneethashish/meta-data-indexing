@@ -1,0 +1,30 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        args: ["bookextractor/"]
+        pass_filenames: false
+        additional_dependencies:
+          - "pydantic>=2.0.0"
+          - "fastapi>=0.100.0"
+          - "types-Pillow"
+          - "types-requests"
+
+  - repo: local
+    hooks:
+      - id: pytest-coverage
+        name: pytest-coverage
+        entry: pytest
+        language: system
+        pass_filenames: false
+        always_run: true
+        args: ["tests/", "--cov=bookextractor", "--cov-report=term-missing"]
+        stages: [pre-push]
