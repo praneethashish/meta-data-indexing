@@ -32,7 +32,7 @@ async def extract(file: Annotated[UploadFile, File()]):
         raise HTTPException(status_code=400, detail="Only PDF files allowed")
 
     # Save temp file
-    temp_path = f"/tmp/{file.filename}"
+    temp_path = f"/tmp/{os.path.basename(file.filename)}"
     with open(temp_path, "wb") as buffer:
         buffer.write(await file.read())
 

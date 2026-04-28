@@ -25,6 +25,7 @@ dependencies = [
     "pre-commit>=3.0.0",
     "vulture>=2.0",
 ]
+requires-python = ">=3.10"
 
 [project.scripts]
 bookextractor = "bookextractor.main:cli_app"
