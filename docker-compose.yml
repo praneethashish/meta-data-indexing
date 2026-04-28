@@ -1,16 +1,28 @@
 services:
   bookextractor:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.bookextractor
+    image: bookextractor:latest
     ports:
       - "8000:8000"
-    volumes:
-      # Persist downloaded models in the repository-local models directory.
-      - ./models:/app/models
-      # Persist EasyOCR cache between runs without hardcoding a user home path.
-      - easyocr-cache:/root/.EasyOCR
     environment:
-      - VLM_MODEL_PATH=/app/models/gemma-4-E4B-it-Q4_K_M.gguf
-    restart: unless-stopped
+      - VPARSE_API_URL=http://vparse:8000
+    volumes:
+      - models:/models
+    depends_on:
+      - vparse
+
+  vparse:
+    build:
+      context: .
+      dockerfile: ${VPARSE_DOCKERFILE:-Dockerfile.vparse}   # default: pipeline/paddle
+    image: vparse:latest
+    ports:
+      - "9000:8000"   # Host 9000 → container 8000
+    volumes:
+      - models:/models
 
 volumes:
-  easyocr-cache:
+  models:
+    name: models   # Persistent volume for downloaded model files

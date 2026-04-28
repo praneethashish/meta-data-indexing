@@ -9,3 +9,4 @@ outputs/
 .cache/
 .git/
 bookextractor.egg-info/
+mineru-dots/

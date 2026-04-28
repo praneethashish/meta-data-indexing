@@ -8,3 +8,4 @@ outputs/
 *.gguf
 .cache/
 .coverage
+mineru-dots/
