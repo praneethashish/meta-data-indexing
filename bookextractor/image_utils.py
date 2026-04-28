@@ -1,8 +1,8 @@
-from PIL import Image
 import fitz
-from typing import List
+from PIL import Image
 
-def crop_regions(img: Image.Image) -> List[Image.Image]:
+
+def crop_regions(img: Image.Image) -> list[Image.Image]:
     """
     Keep top, middle, bottom regions.
     """
@@ -12,22 +12,24 @@ def crop_regions(img: Image.Image) -> List[Image.Image]:
     bottom = img.crop((0, 3 * h // 4, w, h))
     return [top, middle, bottom]
 
+
 def crop_bbox(img: Image.Image, rect: fitz.Rect, page_rect: fitz.Rect) -> Image.Image:
     """
     Crop image using PyMuPDF Rect coordinates.
     """
     w, h = img.size
     pw, ph = page_rect.width, page_rect.height
-    
+
     # Scale factors
     sx, sy = w / pw, h / ph
-    
+
     left = rect.x0 * sx
     top = rect.y0 * sy
     right = rect.x1 * sx
     bottom = rect.y1 * sy
-    
+
     return img.crop((left, top, right, bottom))
 
-def combine_regions(standard_crops: List[Image.Image], keyword_crops: List[Image.Image]) -> List[Image.Image]:
+
+def combine_regions(standard_crops: list[Image.Image], keyword_crops: list[Image.Image]) -> list[Image.Image]:
     return standard_crops + keyword_crops

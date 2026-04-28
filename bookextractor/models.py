@@ -1,5 +1,5 @@
-from typing import Optional
 from pydantic import BaseModel, Field
+
 
 class ConfidenceScores(BaseModel):
     title: float = Field(0.0, ge=0.0, le=1.0)
@@ -8,13 +8,15 @@ class ConfidenceScores(BaseModel):
     isbn: float = Field(0.0, ge=0.0, le=1.0)
     published_date: float = Field(0.0, ge=0.0, le=1.0)
 
+
 class BookMetadata(BaseModel):
-    title: Optional[str] = None
-    author: Optional[str] = None
-    publisher: Optional[str] = None
-    isbn: Optional[str] = None
-    published_date: Optional[str] = None
+    title: str | None = None
+    author: str | None = None
+    publisher: str | None = None
+    isbn: str | None = None
+    published_date: str | None = None
     confidence: ConfidenceScores
+
 
 class BenchmarkResult(BaseModel):
     result: BookMetadata
