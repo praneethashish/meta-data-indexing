@@ -6,17 +6,14 @@ from pathlib import Path
 from typing import Any
 from urllib.request import Request, urlopen
 
-import fitz
 from llama_cpp import Llama
-from PIL import Image
 
 from .external_api import lookup_isbn
-from .image_utils import combine_regions, crop_bbox, crop_regions
-from .models import BenchmarkResult, BookMetadata, ConfidenceScores
+from .image_utils import extract_image_metadata
+from .models import BenchmarkResult, BookMetadata, ConfidenceScores, ImageMetadata
 from .ocr import OCRScanner
-from .pdf_utils import extract_keyword_bboxes, get_page_image
-from .vparse_client import parse_pdf_via_vparse
 from .validation import extract_isbn_candidates
+from .vparse_client import parse_pdf_via_vparse
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "models"))
@@ -95,15 +92,15 @@ class ExtractionPipeline:
 
         self.llm = Llama(model_path=effective_model_path, n_ctx=2048, verbose=False)
 
-    async def process_pdf(self, pdf_path: str, benchmark: bool = False) -> Dict[str, Any]:
+    async def process_pdf(self, pdf_path: str, benchmark: bool = False) -> dict[str, Any]:
         # Call vParse OCR API
         vparse_response = await parse_pdf_via_vparse(pdf_path)
-        
+
         # Extract text from vParse response
         # vParse returns a dict where results are indexed by filename
-        filename = os.path.basename(pdf_path).rsplit('.', 1)[0]
+        filename = os.path.basename(pdf_path).rsplit(".", 1)[0]
         result_data = vparse_response.get("results", {}).get(filename, {})
-        
+
         full_text = result_data.get("md_content", "")
         if not full_text:
             # Fallback to content_list if md_content is missing
@@ -115,24 +112,28 @@ class ExtractionPipeline:
 
         return await self.extract_from_text(full_text, benchmark=benchmark)
 
-    async def process_text_file(self, file_path: str, benchmark: bool = False) -> Dict[str, Any]:
-        with open(file_path, "r", encoding="utf-8") as f:
+    async def process_image(self, image_path: str) -> dict[str, Any]:
+        metadata_dict = extract_image_metadata(image_path)
+        return ImageMetadata(**metadata_dict).dict()
+
+    async def process_text_file(self, file_path: str, benchmark: bool = False) -> dict[str, Any]:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
         return await self.extract_from_text(content, benchmark=benchmark)
 
-    async def extract_from_text(self, text: str, benchmark: bool = False) -> Dict[str, Any]:
+    async def extract_from_text(self, text: str, benchmark: bool = False) -> dict[str, Any]:
         # OCR for ISBN from text
         isbns = extract_isbn_candidates(text)
-        
+
         # LLM Semantic Extraction
         llm_result = self.extract_semantic_fields(text)
-        
+
         final_data = {
             "title": llm_result.get("title"),
             "author": llm_result.get("author"),
             "publisher": llm_result.get("publisher"),
             "published_date": llm_result.get("published_date"),
-            "isbn": None
+            "isbn": None,
         }
 
         # ISBN Validation & External lookup
@@ -147,7 +148,7 @@ class ExtractionPipeline:
         final_data["isbn"] = isbn
 
         # Confidence Scoring
-        all_candidates = {k: [v] for k, v in final_data.items() if k != "isbn"}
+        all_candidates: dict[str, list[Any]] = {k: [v] for k, v in final_data.items() if k != "isbn"}
         all_candidates["isbn"] = isbns
         confidence = self.calculate_confidence(final_data, all_candidates, bool(isbn))
 
@@ -160,11 +161,7 @@ class ExtractionPipeline:
             confidence=confidence,
         )
 
-        debug_info = {
-            "isbn_candidates": isbns,
-            "llm_raw_output": llm_result,
-            "text_snippet": text[:500]
-        }
+        debug_info = {"isbn_candidates": isbns, "llm_raw_output": llm_result, "text_snippet": text[:500]}
 
         if benchmark:
             return BenchmarkResult(result=result, debug=debug_info).dict()
@@ -218,7 +215,7 @@ Text:
         return merged
 
     def calculate_confidence(
-        self, final: dict[str, Any], candidates: dict[str, list[str]], has_isbn: bool
+        self, final: dict[str, Any], candidates: dict[str, list[Any]], has_isbn: bool
     ) -> ConfidenceScores:
         scores = {}
         for field in ["title", "author", "publisher", "published_date"]:
