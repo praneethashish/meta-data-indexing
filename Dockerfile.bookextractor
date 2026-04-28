@@ -3,12 +3,19 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# build-essential + cmake needed for llama-cpp-python compilation
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl && \
+    apt-get install -y --no-install-recommends \
+        curl build-essential cmake && \
     rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast dependency resolution
 RUN pip install --no-cache-dir uv
+
+# Pre-install CPU-only torch to prevent CUDA libs from being pulled
+RUN uv pip install --system \
+    torch torchvision \
+    --index-url https://download.pytorch.org/whl/cpu
 
 # Copy project files and install
 COPY pyproject.toml ./
