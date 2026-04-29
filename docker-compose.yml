@@ -7,21 +7,42 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - VPARSE_API_URL=http://vparse:8000
+      - VPARSE_API_URL=http://vparse:8000/file_parse
+      - BOOKEXTRACTOR_MODELS_DIR=/models
     volumes:
       - models:/models
     depends_on:
-      - vparse
+      model-downloader:
+        condition: service_completed_successfully
+      vparse:
+        condition: service_started
 
   vparse:
     build:
       context: .
-      dockerfile: ${VPARSE_DOCKERFILE:-Dockerfile.vparse}   # default: pipeline/paddle
+      dockerfile: ${VPARSE_DOCKERFILE:-Dockerfile.vparse}
     image: vparse:latest
     ports:
-      - "9000:8000"   # Host 9000 → container 8000
+      - "9000:8000"
+    environment:
+      - MODELSCOPE_CACHE=/models
+      - HF_HOME=/models
     volumes:
       - models:/models
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+
+  model-downloader:
+    image: python:3.11-slim
+    volumes:
+      - models:/models
+      - ./scripts/setup_models.py:/app/setup_models.py
+    environment:
+      - MODELSCOPE_CACHE=/models
+      - HF_HOME=/models
+    command: >
+      sh -c "pip install huggingface_hub modelscope && python /app/setup_models.py"
 
 volumes:
   models:

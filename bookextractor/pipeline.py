@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 from collections.abc import Iterator
 from pathlib import Path
@@ -88,23 +89,44 @@ class ExtractionPipeline:
         if not os.path.exists(effective_model_path):
             raise ValueError(f"Model path does not exist after resolution: {effective_model_path}")
 
-        self.llm = Llama(model_path=effective_model_path, n_ctx=2048, verbose=False)
+        self.llm = Llama(model_path=effective_model_path, n_ctx=8192, verbose=False)
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False) -> Dict[str, Any]:
         # Call vParse OCR API
         vparse_response = await parse_pdf_via_vparse(pdf_path)
-        
-        # Extract text from vParse response
+
+        results = vparse_response.get("results", {})
         filename = os.path.basename(pdf_path).rsplit(".", 1)[0]
-        result_data = vparse_response.get("results", {}).get(filename, {})
-        
-        full_text = result_data.get("md_content", "")
-        if not full_text:
+        result_data = results.get(filename, {})
+
+        # Fallback: if filename key not found, use the first available result
+        if not result_data and results:
+            result_data = results[next(iter(results))]
+
+        # Extract text, preferring content_list (cleaner) over md_content
+        full_text = ""
+
+        if isinstance(result_data, dict):
             content_list = result_data.get("content_list", [])
+            if isinstance(content_list, str):
+                try:
+                    content_list = json.loads(content_list)
+                except (json.JSONDecodeError, TypeError):
+                    pass
             if isinstance(content_list, list):
-                full_text = "\n".join([item.get("text", "") for item in content_list if isinstance(item, dict)])
-            elif isinstance(content_list, str):
-                full_text = content_list
+                full_text = "\n".join(
+                    item.get("text", "") for item in content_list
+                    if isinstance(item, dict) and item.get("text")
+                )
+
+        # Fallback to md_content
+        if not full_text and isinstance(result_data, dict):
+            full_text = result_data.get("md_content", "")
+
+        # Clean up the text for LLM
+        full_text = re.sub(r'!\[.*?\]\(.*?\)\s*', '', full_text)  # Remove image refs
+        full_text = re.sub(r'\n{3,}', '\n\n', full_text)  # Collapse whitespace
+        full_text = full_text.strip()
 
         return await self.extract_from_text(full_text, benchmark=benchmark)
 
@@ -170,25 +192,18 @@ class ExtractionPipeline:
         return result.dict()
 
     def extract_semantic_fields(self, text: str) -> dict[str, Any]:
-        prompt = f"""<|system|>
-You are an expert multilingual metadata extractor.
-Fields to extract: title, author, publisher, published_date
-Rules:
-- Return STRICT JSON only.
-- Do NOT guess.
-- If uncertain, return null.
-- Do NOT include ISBN.
-- Text may be noisy OCR output in English, Telugu, or Hindi. Look for names and titles carefully.
-<|user|>
+        prompt = f"""Extract book metadata from the following OCR text. Return ONLY a JSON object with these fields: title, author, publisher, published_date. If uncertain, use null.
+
 Text:
-{text[:1500]}
-<|assistant|>
+{text[:3000]}
+
+Answer with JSON only:
 """
         try:
             output = self.llm(
                 prompt,
                 max_tokens=256,
-                stop=["<|end|>", "\n\n"],
+                stop=["```"],
                 echo=False,
                 stream=False,
             )
