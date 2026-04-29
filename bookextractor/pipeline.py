@@ -10,8 +10,7 @@ from llama_cpp import Llama
 
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
-from .models import BenchmarkResult, BookMetadata, ConfidenceScores, ImageMetadata
-from .ocr import OCRScanner
+from .models import BenchmarkResult, BookMetadata, ConfidenceScores, ExtractionResult, ImageMetadata
 from .validation import extract_isbn_candidates
 from .vparse_client import parse_pdf_via_vparse
 
@@ -83,7 +82,6 @@ def resolve_model_paths() -> tuple[str, str | None]:
 
 class ExtractionPipeline:
     def __init__(self, model_path: str | None = None):
-        self.ocr = OCRScanner()
         resolved_model_path, _ = resolve_model_paths()
         effective_model_path = model_path or resolved_model_path
 
@@ -97,13 +95,11 @@ class ExtractionPipeline:
         vparse_response = await parse_pdf_via_vparse(pdf_path)
         
         # Extract text from vParse response
-        # vParse returns a dict where results are indexed by filename
-        filename = os.path.basename(pdf_path).rsplit('.', 1)[0]
+        filename = os.path.basename(pdf_path).rsplit(".", 1)[0]
         result_data = vparse_response.get("results", {}).get(filename, {})
         
         full_text = result_data.get("md_content", "")
         if not full_text:
-            # Fallback to content_list if md_content is missing
             content_list = result_data.get("content_list", [])
             if isinstance(content_list, list):
                 full_text = "\n".join([item.get("text", "") for item in content_list if isinstance(item, dict)])
@@ -112,9 +108,14 @@ class ExtractionPipeline:
 
         return await self.extract_from_text(full_text, benchmark=benchmark)
 
-    async def process_image(self, image_path: str) -> dict[str, Any]:
+    async def process_image(self, image_path: str, benchmark: bool = False) -> dict[str, Any]:
         metadata_dict = extract_image_metadata(image_path)
-        return ImageMetadata(**metadata_dict).dict()
+        img_meta = ImageMetadata(**metadata_dict)
+        result = ExtractionResult(image_metadata=img_meta)
+
+        if benchmark:
+            return BenchmarkResult(result=result).dict()
+        return result.dict()
 
     async def process_text_file(self, file_path: str, benchmark: bool = False) -> dict[str, Any]:
         with open(file_path, encoding="utf-8") as f:
@@ -122,7 +123,7 @@ class ExtractionPipeline:
         return await self.extract_from_text(content, benchmark=benchmark)
 
     async def extract_from_text(self, text: str, benchmark: bool = False) -> dict[str, Any]:
-        # OCR for ISBN from text
+        # ISBN Extraction
         isbns = extract_isbn_candidates(text)
 
         # LLM Semantic Extraction
@@ -142,7 +143,7 @@ class ExtractionPipeline:
             isbn = isbns[0]
             ext_data = await lookup_isbn(isbn)
             for k, v in ext_data.items():
-                if v:  # Override if external data is available
+                if v:
                     final_data[k] = v
 
         final_data["isbn"] = isbn
@@ -152,7 +153,7 @@ class ExtractionPipeline:
         all_candidates["isbn"] = isbns
         confidence = self.calculate_confidence(final_data, all_candidates, bool(isbn))
 
-        result = BookMetadata(
+        book_meta = BookMetadata(
             title=final_data.get("title"),
             author=final_data.get("author"),
             publisher=final_data.get("publisher"),
@@ -161,6 +162,7 @@ class ExtractionPipeline:
             confidence=confidence,
         )
 
+        result = ExtractionResult(book_metadata=book_meta)
         debug_info = {"isbn_candidates": isbns, "llm_raw_output": llm_result, "text_snippet": text[:500]}
 
         if benchmark:
@@ -194,7 +196,6 @@ Text:
                 return {}
 
             text_out = output["choices"][0]["text"].strip()
-            # Try to find JSON in output
             start = text_out.find("{")
             end = text_out.rfind("}") + 1
             if start != -1 and end != -1:
@@ -202,17 +203,6 @@ Text:
         except Exception:
             pass
         return {}
-
-    def merge_candidates(self, candidates: dict[str, list[str]]) -> dict[str, Any]:
-        merged: dict[str, Any] = {}
-        for field in ["title", "author", "publisher", "published_date"]:
-            vals = [v for v in candidates[field] if v]
-            if not vals:
-                merged[field] = None
-                continue
-            # Prefer longest string for completeness
-            merged[field] = max(vals, key=len)
-        return merged
 
     def calculate_confidence(
         self, final: dict[str, Any], candidates: dict[str, list[Any]], has_isbn: bool
@@ -222,7 +212,6 @@ Text:
             if not final.get(field):
                 scores[field] = 0.0
             else:
-                # If we have multiple consistent candidates, higher confidence
                 vals = [v for v in candidates[field] if v]
                 consistency = vals.count(final[field]) / len(vals) if vals else 0.5
                 scores[field] = min(1.0, 0.5 + 0.5 * consistency)

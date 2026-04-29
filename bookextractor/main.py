@@ -30,7 +30,7 @@ async def extract(file: UploadFile = File(...)):  # noqa: B008
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
     filename = file.filename.lower()
-    allowed_extensions = (".pdf", ".md", ".json", ".jpg", ".jpeg", ".png")
+    allowed_extensions = (".pdf", ".md", ".json", ".jpg", ".jpeg", ".png", ".webp", ".tiff")
     if not filename.endswith(allowed_extensions):
         raise HTTPException(status_code=400, detail=f"Unsupported file type. Allowed: {allowed_extensions}")
 
@@ -46,7 +46,7 @@ async def extract(file: UploadFile = File(...)):  # noqa: B008
         p = get_pipeline()
         if filename.endswith(".pdf"):
             result = await p.process_pdf(temp_path)
-        elif filename.endswith((".jpg", ".jpeg", ".png")):
+        elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff")):
             result = await p.process_image(temp_path)
         else:
             result = await p.process_text_file(temp_path)
@@ -59,7 +59,7 @@ async def extract(file: UploadFile = File(...)):  # noqa: B008
 @cli_app.callback(invoke_without_command=True)
 def main(
     _ctx: typer.Context,
-    input_file: str | None = typer.Argument(None, help="Path to input file (.pdf, .md, .json, .jpg, .png)"),  # noqa: B008
+    input_file: str | None = typer.Argument(None, help="Input file path (.pdf, .md, .json, .jpg, .png, .webp, .tiff)"),  # noqa: B008
     output_json: str | None = typer.Argument(None, help="Path to output JSON"),  # noqa: B008
     benchmark: bool = typer.Option(False, "--benchmark", help="Enable benchmark mode"),  # noqa: B008
     api: bool = typer.Option(False, "--api", help="Start FastAPI server"),  # noqa: B008
@@ -81,14 +81,13 @@ def main(
             result = await p.process_pdf(input_file, benchmark=benchmark)
         elif filename.endswith((".md", ".json")):
             result = await p.process_text_file(input_file, benchmark=benchmark)
-        elif filename.endswith((".jpg", ".jpeg", ".png")):
-            result = await p.process_image(input_file)
+        elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff")):
+            result = await p.process_image(input_file, benchmark=benchmark)
         else:
             print(f"Error: Unsupported file type: {input_file}")
             raise typer.Exit(code=1)
 
         # Ensure output directory exists
-
         os.makedirs(os.path.dirname(os.path.abspath(output_json)), exist_ok=True)
 
         with open(output_json, "w") as f:
