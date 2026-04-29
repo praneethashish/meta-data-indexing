@@ -91,9 +91,9 @@ class ExtractionPipeline:
 
         self.llm = Llama(model_path=effective_model_path, n_ctx=8192, verbose=False)
 
-    async def process_pdf(self, pdf_path: str, benchmark: bool = False) -> Dict[str, Any]:
-        # Call vParse OCR API
-        vparse_response = await parse_pdf_via_vparse(pdf_path)
+    async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
+        # Call vParse OCR API with the selected language
+        vparse_response = await parse_pdf_via_vparse(pdf_path, lang=lang)
 
         results = vparse_response.get("results", {})
         filename = os.path.basename(pdf_path).rsplit(".", 1)[0]
@@ -192,12 +192,32 @@ class ExtractionPipeline:
         return result.dict()
 
     def extract_semantic_fields(self, text: str) -> dict[str, Any]:
-        prompt = f"""Extract book metadata from the following OCR text. Return ONLY a JSON object with these fields: title, author, publisher, published_date. If uncertain, use null.
+        prompt = f"""You are an expert book metadata extractor. Your task is to identify and extract structured metadata from noisy OCR text of scanned book pages.
 
-Text:
+The text below was extracted via OCR from scanned book pages and may contain:
+- OCR errors, garbled characters, or misread words
+- Mixed languages (English, Telugu, Hindi)
+- Publishing information like edition details, print runs, and pricing
+- Copyright notices with author names
+- Publisher addresses and contact information
+
+Extract the following fields and return ONLY a valid JSON object:
+- "title": The book's title (look for prominent text, large headings, or text on the title page)
+- "author": The author's full name (look near "By", "©", "Written by", or Telugu/Hindi equivalents)
+- "publisher": The publisher's name (look near "Published by", "ప్రచురణ", "प्रकाशक", or publishing house names)
+- "published_date": The earliest publication date (look for years like 1996, 2004 near "First Edition", "ముద్రణ", "संस्करण")
+
+Rules:
+- Return STRICT JSON only — no explanation, no markdown, no extra text.
+- If a field cannot be confidently determined, set its value to null.
+- Do NOT fabricate or guess values. Only extract what is clearly present.
+- Do NOT include ISBN (it is extracted separately).
+- Prefer the original/first edition date over reprint dates.
+
+OCR Text:
 {text[:3000]}
 
-Answer with JSON only:
+JSON:
 """
         try:
             output = self.llm(

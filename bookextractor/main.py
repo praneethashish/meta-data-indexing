@@ -1,12 +1,20 @@
 import asyncio
 import json
 import os
+from enum import Enum
 
 import typer
 import uvicorn
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from .pipeline import ExtractionPipeline
+
+
+class OCRLanguage(str, Enum):
+    """Supported PaddleOCR language packs."""
+    ENGLISH = "en"
+    TELUGU = "te"
+    HINDI = "devanagari"
 
 app = FastAPI()
 cli_app = typer.Typer()
@@ -26,7 +34,13 @@ def health():
 
 
 @app.post("/extract")
-async def extract(file: UploadFile = File(...)):  # noqa: B008
+async def extract(
+    file: UploadFile = File(...),  # noqa: B008
+    lang: OCRLanguage = Form(  # noqa: B008
+        OCRLanguage.ENGLISH,
+        description="OCR language pack: 'en' (English), 'te' (Telugu+English), 'devanagari' (Hindi+English)",
+    ),
+):
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
     filename = file.filename.lower()
@@ -45,7 +59,7 @@ async def extract(file: UploadFile = File(...)):  # noqa: B008
     try:
         p = get_pipeline()
         if filename.endswith(".pdf"):
-            result = await p.process_pdf(temp_path)
+            result = await p.process_pdf(temp_path, lang=lang.value)
         elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff")):
             result = await p.process_image(temp_path)
         else:
