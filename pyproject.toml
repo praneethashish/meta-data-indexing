@@ -24,6 +24,10 @@ dependencies = [
     "mypy>=1.0.0",
     "pre-commit>=3.0.0",
     "vulture>=2.0",
+    "requests>=2.31.0",
+    "piexif>=1.1.3",
+    "pytest-mock>=1.15.0",
+    "pytest-asyncio>=0.21.0",
 ]
 requires-python = ">=3.10"
 
@@ -69,3 +73,9 @@ disallow_untyped_defs = false
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "--cov=bookextractor --cov-report=term-missing"
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "pytest-httpx>=0.36.2",
+]

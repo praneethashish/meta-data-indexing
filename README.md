@@ -68,24 +68,49 @@ uv run bookextractor --api
 
 ## 🐳 Docker Support
 
-`bookextractor` is optimized for Docker with a slim image and volume-mounted models.
+The project runs as **two separate containers** orchestrated via Docker Compose:
 
-### Run with Docker Compose (Recommended)
+| Service | Container Port | Host Port | Description |
+|---------|---------------|-----------|-------------|
+| `bookextractor` | 8000 | **8000** | BookExtractor FastAPI service |
+| `vparse` | 8000 | **9000** | VParse (MinerU) OCR API service |
 
-This method mounts your local models to the container to keep the image size small.
+### Quick Start (Pipeline/Paddle – Default)
 
 ```bash
 docker compose up --build -d
 ```
 
-The API will be available at `http://localhost:8000`.
+This builds and starts both services. The VParse container installs **only pipeline dependencies** (`torch`, `torchvision`, `onnxruntime` — no `vllm`, no CUDA libs).
 
-### Manual Docker Build
+### Other OCR Backends
+
+Each mode has its own Dockerfile with **only the dependencies it needs**:
 
 ```bash
-docker build -t bookextractor .
-docker run -p 8000:8000 -v /path/to/model:/app/models/gemma.gguf bookextractor
+# Pipeline/Paddle (default) – multi-model, multilingual
+docker compose up --build -d
+
+# Lite – Tesseract-only, smallest image, no torch
+VPARSE_DOCKERFILE=Dockerfile.vparse.lite docker compose up --build -d
+
+# Hybrid – pipeline + VLM combined
+VPARSE_DOCKERFILE=Dockerfile.vparse.hybrid docker compose up --build -d
+
+# VLM – vision-language model (GPU recommended)
+VPARSE_DOCKERFILE=Dockerfile.vparse.vlm docker compose up --build -d
 ```
+
+| Mode | Dockerfile | Pip extras | Image size |
+|------|-----------|------------|------------|
+| **Pipeline/Paddle** | `Dockerfile.vparse` | `.[pipeline,api]` | ~2 GB |
+| **Lite** | `Dockerfile.vparse.lite` | `.[lite,api]` | ~500 MB |
+| **Hybrid** | `Dockerfile.vparse.hybrid` | `.[pipeline,vlm,api]` | ~3 GB |
+| **VLM** | `Dockerfile.vparse.vlm` | `.[vlm,api]` | ~2.5 GB |
+
+### Model Persistence
+
+Models are stored in a Docker named volume `models`. They are downloaded on first run and reused across container restarts — no re-download on rebuild.
 
 ## 🏗 Architecture
 

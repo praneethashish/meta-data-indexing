@@ -7,3 +7,5 @@ outputs/
 .pytest_cache/
 *.gguf
 .cache/
+.coverage
+mineru-dots/

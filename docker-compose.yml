@@ -1,16 +1,49 @@
 services:
   bookextractor:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.bookextractor
+    image: bookextractor:latest
     ports:
       - "8000:8000"
-    volumes:
-      # Persist downloaded models in the repository-local models directory.
-      - ./models:/app/models
-      # Persist EasyOCR cache between runs without hardcoding a user home path.
-      - easyocr-cache:/root/.EasyOCR
     environment:
-      - VLM_MODEL_PATH=/app/models/gemma-4-E4B-it-Q4_K_M.gguf
-    restart: unless-stopped
+      - VPARSE_API_URL=http://vparse:8000/file_parse
+      - BOOKEXTRACTOR_MODELS_DIR=/models
+    volumes:
+      - models:/models
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+      vparse:
+        condition: service_started
+
+  vparse:
+    build:
+      context: .
+      dockerfile: ${VPARSE_DOCKERFILE:-Dockerfile.vparse}
+    image: vparse:latest
+    ports:
+      - "9000:8000"
+    environment:
+      - MODELSCOPE_CACHE=/models
+      - HF_HOME=/models
+    volumes:
+      - models:/models
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+
+  model-downloader:
+    image: python:3.11-slim
+    volumes:
+      - models:/models
+      - ./scripts/setup_models.py:/app/setup_models.py
+    environment:
+      - MODELSCOPE_CACHE=/models
+      - HF_HOME=/models
+    command: >
+      sh -c "pip install huggingface_hub modelscope && python /app/setup_models.py"
 
 volumes:
-  easyocr-cache:
+  models:
+    name: models   # Persistent volume for downloaded model files
