@@ -8,7 +8,35 @@ services:
       - "8000:8000"
     environment:
       - VPARSE_API_URL=http://vparse:8000/file_parse
-      - BOOKEXTRACTOR_MODELS_DIR=/models
+      - VLLM_MODEL=google/gemma-4-E4B-it
+      - HF_TOKEN=${HF_TOKEN}
+      - VLLM_TENSOR_PARALLEL_SIZE=1
+    volumes:
+      - ~/.cache/huggingface/hub:/root/.cache/huggingface/hub
+      - models:/models
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+      vparse:
+        condition: service_started
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  vparse:
+    build:
+      context: .
+      dockerfile: ${VPARSE_DOCKERFILE:-Dockerfile.vparse}
+    image: vparse:latest
+    ports:
+      - "9000:8000"
+    environment:
+      - MODELSCOPE_CACHE=/models
+      - HF_HOME=/models
     volumes:
       - models:/models
     depends_on:
@@ -161,4 +189,4 @@ services:
 
 volumes:
   models:
-    name: models   # Persistent volume for downloaded model files
+    name: models

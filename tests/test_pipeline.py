@@ -8,11 +8,13 @@ from bookextractor.pipeline import ExtractionPipeline
 @pytest.fixture
 def mock_llm():
     mock = MagicMock()
-    mock.return_value = {
-        "choices": [{
-            "text": '{"title": "Test Book", "author": "Test Author", "publisher": "Test Publisher", "published_date": "2023"}'  # noqa: E501
-        }]
-    }
+    mock_output = MagicMock()
+    mock_output.outputs = [
+        MagicMock(
+            text='{"title": "Test Book", "author": "Test Author", "publisher": "Test Publisher", "published_date": "2023"}'  # noqa: E501
+        )
+    ]
+    mock.return_value = [mock_output]
     return mock
 
 
