@@ -14,35 +14,150 @@ services:
     depends_on:
       model-downloader:
         condition: service_completed_successfully
-      vparse:
-        condition: service_started
-
-  vparse:
-    build:
-      context: .
-      dockerfile: ${VPARSE_DOCKERFILE:-Dockerfile.vparse}
-    image: vparse:latest
-    ports:
-      - "9000:8000"
-    environment:
-      - MODELSCOPE_CACHE=/models
-      - HF_HOME=/models
-    volumes:
-      - models:/models
-    depends_on:
-      model-downloader:
-        condition: service_completed_successfully
 
   model-downloader:
-    image: python:3.11-slim
+    build:
+      context: .
+      dockerfile: Dockerfile.model-downloader
     volumes:
       - models:/models
       - ./scripts/setup_models.py:/app/setup_models.py
     environment:
       - MODELSCOPE_CACHE=/models
       - HF_HOME=/models
-    command: >
-      sh -c "pip install huggingface_hub modelscope && python /app/setup_models.py"
+    command: python -u /app/setup_models.py
+
+  # ---------------------------------------------------------
+  # VParse Services (Optional, started via profiles)
+  # Build directly from Git: https://github.com/suryamanoj4/mineru-dots.git
+  # ---------------------------------------------------------
+
+  vparse-pipeline:
+    profiles: ["pipeline"]
+    build:
+      context: https://github.com/suryamanoj4/mineru-dots.git#main
+      dockerfile: docker/global/Dockerfile.cpu
+    image: vparse:pipeline
+    networks:
+      default:
+        aliases:
+          - vparse
+    ports:
+      - "9000:8000"
+    environment:
+      - VPARSE_MODEL_SOURCE=huggingface
+      - VPARSE_PREFETCH_MODELS=pipeline
+      - MODELSCOPE_CACHE=/models
+      - HF_HOME=/models
+    volumes:
+      - models:/models
+      - models:/root/.cache/huggingface
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    ipc: host
+    entrypoint:
+      - python3
+      - /app/docker/global/start-with-models.py
+    command:
+      - vparse-api
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+
+  vparse-vlm:
+    profiles: ["vlm"]
+    build:
+      context: https://github.com/suryamanoj4/mineru-dots.git#main
+      dockerfile: docker/global/Dockerfile
+    image: vparse:vlm
+    networks:
+      default:
+        aliases:
+          - vparse
+    ports:
+      - "9000:8000"
+    environment:
+      - VPARSE_MODEL_SOURCE=huggingface
+      - VPARSE_PREFETCH_MODELS=vlm
+      - MODELSCOPE_CACHE=/models
+      - HF_HOME=/models
+    volumes:
+      - models:/models
+      - models:/root/.cache/huggingface
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    ipc: host
+    entrypoint:
+      - python3
+      - /app/docker/global/start-with-models.py
+    command:
+      - vparse-api
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --gpu-memory-utilization
+      - "0.5"
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+
+  vparse-hybrid:
+    profiles: ["hybrid"]
+    build:
+      context: https://github.com/suryamanoj4/mineru-dots.git#main
+      dockerfile: docker/global/Dockerfile
+    image: vparse:hybrid
+    networks:
+      default:
+        aliases:
+          - vparse
+    ports:
+      - "9000:8000"
+    environment:
+      - VPARSE_MODEL_SOURCE=huggingface
+      - VPARSE_PREFETCH_MODELS=all
+      - MODELSCOPE_CACHE=/models
+      - HF_HOME=/models
+    volumes:
+      - models:/models
+      - models:/root/.cache/huggingface
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    ipc: host
+    entrypoint:
+      - python3
+      - /app/docker/global/start-with-models.py
+    command:
+      - vparse-api
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --gpu-memory-utilization
+      - "0.5"
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
 
 volumes:
   models:

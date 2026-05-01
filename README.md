@@ -68,49 +68,41 @@ uv run bookextractor --api
 
 ## 🐳 Docker Support
 
-The project runs as **two separate containers** orchestrated via Docker Compose:
+The project runs using Docker Compose. By default, only **BookExtractor** and its **model-downloader** are started. The VParse (MinerU) OCR API service is optional and is pulled directly from the official upstream repository on demand via Docker Compose profiles.
+
+### Quick Start (Metadata Indexing Only)
+
+To start only the BookExtractor service and download the Gemma LLM:
+```bash
+docker compose up --build -d
+```
+This builds the BookExtractor container and starts the `model-downloader` to fetch the necessary Gemma model into a shared volume.
+
+### Running with VParse OCR Backends
+
+If you need the OCR capabilities, you can include VParse by specifying a **Docker profile**. When a VParse profile is specified, Docker Compose automatically clones the MinerU repository from Git and builds the required mode without needing local Dockerfiles.
+
+Available profiles for VParse:
+- `pipeline`: Multi-model, multilingual OCR using Paddle (CPU/GPU)
+- `vlm`: Vision-language model for OCR (GPU recommended)
+- `hybrid`: Combined pipeline + VLM
+
+**Example: Start BookExtractor with VParse Pipeline Mode**
+```bash
+docker compose --profile pipeline up --build -d
+```
 
 | Service | Container Port | Host Port | Description |
 |---------|---------------|-----------|-------------|
 | `bookextractor` | 8000 | **8000** | BookExtractor FastAPI service |
 | `vparse` | 8000 | **9000** | VParse (MinerU) OCR API service |
 
-### Quick Start (Pipeline/Paddle – Default)
-
-```bash
-docker compose up --build -d
-```
-
-This builds and starts both services. The VParse container installs **only pipeline dependencies** (`torch`, `torchvision`, `onnxruntime` — no `vllm`, no CUDA libs).
-
-### Other OCR Backends
-
-Each mode has its own Dockerfile with **only the dependencies it needs**:
-
-```bash
-# Pipeline/Paddle (default) – multi-model, multilingual
-docker compose up --build -d
-
-# Lite – Tesseract-only, smallest image, no torch
-VPARSE_DOCKERFILE=Dockerfile.vparse.lite docker compose up --build -d
-
-# Hybrid – pipeline + VLM combined
-VPARSE_DOCKERFILE=Dockerfile.vparse.hybrid docker compose up --build -d
-
-# VLM – vision-language model (GPU recommended)
-VPARSE_DOCKERFILE=Dockerfile.vparse.vlm docker compose up --build -d
-```
-
-| Mode | Dockerfile | Pip extras | Image size |
-|------|-----------|------------|------------|
-| **Pipeline/Paddle** | `Dockerfile.vparse` | `.[pipeline,api]` | ~2 GB |
-| **Lite** | `Dockerfile.vparse.lite` | `.[lite,api]` | ~500 MB |
-| **Hybrid** | `Dockerfile.vparse.hybrid` | `.[pipeline,vlm,api]` | ~3 GB |
-| **VLM** | `Dockerfile.vparse.vlm` | `.[vlm,api]` | ~2.5 GB |
-
 ### Model Persistence
 
-Models are stored in a Docker named volume `models`. They are downloaded on first run and reused across container restarts — no re-download on rebuild.
+Models (both Gemma LLM and VParse OCR weights) are stored in a Docker named volume `models`. They are downloaded by the `model-downloader` service on first run and reused across container restarts — no re-download on rebuild. You can monitor the download progress by checking the logs:
+```bash
+docker compose logs -f model-downloader
+```
 
 ## 🏗 Architecture
 
