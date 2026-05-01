@@ -31,9 +31,17 @@ class ImageMetadata(BaseModel):
     dpi_horizontal: float | None = None
     dpi_vertical: float | None = None
 
+class ImageVLMMetadata(BaseModel):
+    description: str | None = None
+    text_content: str | None = None
+    language: str | None = None
+    scene_classification: str | None = None
+    entities: list[dict] = []
+
 class ExtractionResult(BaseModel):
     book_metadata: BookMetadata | None = None
     image_metadata: ImageMetadata | None = None
+    image_vlm_metadata: ImageVLMMetadata | None = None
 
 class BenchmarkResult(BaseModel):
     result: ExtractionResult

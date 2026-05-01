@@ -1,13 +1,10 @@
 import json
 import os
 import re
-import shutil
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
-from urllib.request import Request, urlopen
 
-from llama_cpp import Llama
+from vllm import LLM, SamplingParams
 
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
@@ -18,78 +15,18 @@ from .vparse_client import parse_pdf_via_vparse
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "models"))
 
-DEFAULT_VLM_FILENAME = "gemma-4-E4B-it-Q4_K_M.gguf"
-DEFAULT_MMPROJ_FILENAME = "mmproj.gguf"
-
-DEFAULT_VLM_URL = os.getenv(
-    "VLM_MODEL_URL",
-    "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf",
-)
-DEFAULT_MMPROJ_URL = os.getenv("MMPROJ_MODEL_URL")
-
-
-def _download_file_if_missing(destination: Path, url: str, label: str) -> None:
-    if destination.exists() and destination.stat().st_size > 0:
-        return
-
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    partial_path = destination.with_suffix(destination.suffix + ".part")
-    request = Request(url, headers={"User-Agent": "bookextractor/0.1.0"})
-
-    print(f"{label} not found at {destination}. Downloading from {url} ...")
-    try:
-        with urlopen(request, timeout=60) as response, partial_path.open("wb") as out_file:
-            shutil.copyfileobj(response, out_file)
-
-        if partial_path.stat().st_size == 0:
-            raise RuntimeError("Downloaded file is empty")
-
-        partial_path.replace(destination)
-        print(f"Saved {label} to {destination}")
-    except Exception as exc:
-        if partial_path.exists():
-            partial_path.unlink()
-        raise RuntimeError(f"Failed to download {label} from {url}: {exc}") from exc
-
-
-def resolve_model_paths() -> tuple[str, str | None]:
-    models_dir = DEFAULT_MODELS_DIR
-
-    configured_model_path = os.getenv("VLM_MODEL_PATH") or os.getenv("GEMMA_MODEL_PATH")
-    model_path = Path(configured_model_path) if configured_model_path else models_dir / DEFAULT_VLM_FILENAME
-    _download_file_if_missing(model_path, DEFAULT_VLM_URL, "GGUF model")
-
-    configured_mmproj_path = os.getenv("MMPROJ_MODEL_PATH")
-    mmproj_path: Path | None = None
-    if configured_mmproj_path:
-        mmproj_path = Path(configured_mmproj_path)
-        if not mmproj_path.exists():
-            raise ValueError(f"Configured MMPROJ_MODEL_PATH does not exist: {mmproj_path}")
-    elif DEFAULT_MMPROJ_URL:
-        mmproj_path = models_dir / DEFAULT_MMPROJ_FILENAME
-        _download_file_if_missing(mmproj_path, DEFAULT_MMPROJ_URL, "Projection model")
-
-    resolved_model_path = str(model_path)
-    resolved_mmproj_path = str(mmproj_path) if mmproj_path else None
-
-    # Keep environment values in sync so downstream calls use resolved local paths.
-    os.environ["VLM_MODEL_PATH"] = resolved_model_path
-    os.environ["GEMMA_MODEL_PATH"] = resolved_model_path
-    if resolved_mmproj_path:
-        os.environ["MMPROJ_MODEL_PATH"] = resolved_mmproj_path
-
-    return resolved_model_path, resolved_mmproj_path
-
 
 class ExtractionPipeline:
-    def __init__(self, model_path: str | None = None):
-        resolved_model_path, _ = resolve_model_paths()
-        effective_model_path = model_path or resolved_model_path
+    def __init__(self, model_id: str | None = None):
+        model = model_id or os.getenv("VLLM_MODEL", "google/gemma-4-E4B-it")
+        tensor_parallel_size = int(os.getenv("VLLM_TENSOR_PARALLEL_SIZE", "1"))
 
-        if not os.path.exists(effective_model_path):
-            raise ValueError(f"Model path does not exist after resolution: {effective_model_path}")
-
-        self.llm = Llama(model_path=effective_model_path, n_ctx=8192, verbose=False)
+        self.llm = LLM(
+            model=model,
+            tensor_parallel_size=tensor_parallel_size,
+            dtype="bfloat16",
+            max_model_len=8192,
+        )
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         # Call vParse OCR API with the selected language
@@ -220,17 +157,9 @@ OCR Text:
 JSON:
 """
         try:
-            output = self.llm(
-                prompt,
-                max_tokens=256,
-                stop=["```"],
-                echo=False,
-                stream=False,
-            )
-            if isinstance(output, Iterator):
-                return {}
-
-            text_out = output["choices"][0]["text"].strip()
+            sampling_params = SamplingParams(temperature=0.7, max_tokens=256, stop=["```"])
+            outputs = self.llm.generate([prompt], sampling_params)
+            text_out = outputs[0].outputs[0].text.strip()
             start = text_out.find("{")
             end = text_out.rfind("}") + 1
             if start != -1 and end != -1:
