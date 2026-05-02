@@ -5,14 +5,7 @@ from bookextractor.vparse_client import parse_pdf_via_vparse
 
 @pytest.fixture
 def sample_vparse_response():
-    return {
-        "results": {
-            "test_document": {
-                "md_content": "# Document Title\n\nContent here...",
-                "content_list": []
-            }
-        }
-    }
+    return {"results": {"test_document": {"md_content": "# Document Title\n\nContent here...", "content_list": []}}}
 
 
 @pytest.fixture
@@ -23,8 +16,8 @@ def sample_vparse_content_list():
                 "md_content": "",
                 "content_list": [
                     {"type": "text", "text": "Title: Document"},
-                    {"type": "text", "text": "Page 1 content"}
-                ]
+                    {"type": "text", "text": "Page 1 content"},
+                ],
             }
         }
     }
@@ -39,10 +32,7 @@ def sample_pdf_path(tmp_path):
 
 @pytest.mark.asyncio
 async def test_parse_pdf_success_md_content(httpx_mock, sample_vparse_response, sample_pdf_path):
-    httpx_mock.add_response(
-        url="http://localhost:8000/file_parse",
-        json=sample_vparse_response
-    )
+    httpx_mock.add_response(url="http://localhost:8000/file_parse", json=sample_vparse_response)
 
     result = await parse_pdf_via_vparse(sample_pdf_path)
 
@@ -52,10 +42,7 @@ async def test_parse_pdf_success_md_content(httpx_mock, sample_vparse_response, 
 
 @pytest.mark.asyncio
 async def test_parse_pdf_fallback_content_list(httpx_mock, sample_vparse_content_list, sample_pdf_path):
-    httpx_mock.add_response(
-        url="http://localhost:8000/file_parse",
-        json=sample_vparse_content_list
-    )
+    httpx_mock.add_response(url="http://localhost:8000/file_parse", json=sample_vparse_content_list)
 
     result = await parse_pdf_via_vparse(sample_pdf_path)
 
@@ -66,19 +53,9 @@ async def test_parse_pdf_fallback_content_list(httpx_mock, sample_vparse_content
 
 @pytest.mark.asyncio
 async def test_parse_pdf_content_list_string(httpx_mock, sample_pdf_path):
-    response = {
-        "results": {
-            "test_document": {
-                "md_content": "",
-                "content_list": "Plain text content as string"
-            }
-        }
-    }
+    response = {"results": {"test_document": {"md_content": "", "content_list": "Plain text content as string"}}}
 
-    httpx_mock.add_response(
-        url="http://localhost:8000/file_parse",
-        json=response
-    )
+    httpx_mock.add_response(url="http://localhost:8000/file_parse", json=response)
 
     result = await parse_pdf_via_vparse(sample_pdf_path)
 
@@ -87,10 +64,7 @@ async def test_parse_pdf_content_list_string(httpx_mock, sample_pdf_path):
 
 @pytest.mark.asyncio
 async def test_parse_pdf_api_error(httpx_mock, sample_pdf_path):
-    httpx_mock.add_response(
-        url="http://localhost:8000/file_parse",
-        status_code=500
-    )
+    httpx_mock.add_response(url="http://localhost:8000/file_parse", status_code=500)
 
     with pytest.raises(RuntimeError, match="vParse API call failed"):
         await parse_pdf_via_vparse(sample_pdf_path)
@@ -112,10 +86,7 @@ async def test_parse_pdf_file_not_found():
 
 @pytest.mark.asyncio
 async def test_parse_pdf_correct_request_params(httpx_mock, sample_vparse_response, sample_pdf_path):
-    httpx_mock.add_response(
-        url="http://localhost:8000/file_parse",
-        json=sample_vparse_response
-    )
+    httpx_mock.add_response(url="http://localhost:8000/file_parse", json=sample_vparse_response)
 
     await parse_pdf_via_vparse(sample_pdf_path)
 
@@ -124,6 +95,6 @@ async def test_parse_pdf_correct_request_params(httpx_mock, sample_vparse_respon
     assert request.url == "http://localhost:8000/file_parse"
 
     # Check form data
-    data = request.read().decode('utf-8', errors='ignore')
-    assert 'hybrid-auto-engine' in data
-    assert 'test.pdf' in data
+    data = request.read().decode("utf-8", errors="ignore")
+    assert "pipeline" in data
+    assert "test.pdf" in data

@@ -23,6 +23,7 @@ async def lookup_isbn(isbn: str) -> dict[str, str | None]:
                         "published_date": book_info.get("publish_date"),
                     }
 
-        except Exception:
+        except Exception:  # nosec
             pass
+
     return {}

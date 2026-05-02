@@ -76,6 +76,10 @@ pythonpath = ["."]
 addopts = "--cov=bookextractor --cov-report=term-missing"
 asyncio_mode = "auto"
 
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101"]
+
 [dependency-groups]
 dev = [
     "pytest-httpx>=0.36.2",

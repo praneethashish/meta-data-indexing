@@ -52,8 +52,7 @@ class ExtractionPipeline:
                     pass
             if isinstance(content_list, list):
                 full_text = "\n".join(
-                    item.get("text", "") for item in content_list
-                    if isinstance(item, dict) and item.get("text")
+                    item.get("text", "") for item in content_list if isinstance(item, dict) and item.get("text")
                 )
 
         # Fallback to md_content
@@ -61,8 +60,8 @@ class ExtractionPipeline:
             full_text = result_data.get("md_content", "")
 
         # Clean up the text for LLM
-        full_text = re.sub(r'!\[.*?\]\(.*?\)\s*', '', full_text)  # Remove image refs
-        full_text = re.sub(r'\n{3,}', '\n\n', full_text)  # Collapse whitespace
+        full_text = re.sub(r"!\[.*?\]\(.*?\)\s*", "", full_text)  # Remove image refs
+        full_text = re.sub(r"\n{3,}", "\n\n", full_text)  # Collapse whitespace
         full_text = full_text.strip()
 
         return await self.extract_from_text(full_text, benchmark=benchmark)
@@ -129,7 +128,8 @@ class ExtractionPipeline:
         return result.dict()
 
     def extract_semantic_fields(self, text: str) -> dict[str, Any]:
-        prompt = f"""You are an expert book metadata extractor. Your task is to identify and extract structured metadata from noisy OCR text of scanned book pages.
+        prompt = f"""You are an expert book metadata extractor. Your task is to identify and extract
+structured metadata from noisy OCR text of scanned book pages.
 
 The text below was extracted via OCR from scanned book pages and may contain:
 - OCR errors, garbled characters, or misread words
@@ -142,7 +142,8 @@ Extract the following fields and return ONLY a valid JSON object:
 - "title": The book's title (look for prominent text, large headings, or text on the title page)
 - "author": The author's full name (look near "By", "©", "Written by", or Telugu/Hindi equivalents)
 - "publisher": The publisher's name (look near "Published by", "ప్రచురణ", "प्रकाशक", or publishing house names)
-- "published_date": The earliest publication date (look for years like 1996, 2004 near "First Edition", "ముద్రణ", "संस्करण")
+- "published_date": The earliest publication date (look for years like 1996, 2004 near
+  "First Edition", "ముద్రణ", "संस्करण")
 
 Rules:
 - Return STRICT JSON only — no explanation, no markdown, no extra text.
@@ -164,7 +165,7 @@ JSON:
             end = text_out.rfind("}") + 1
             if start != -1 and end != -1:
                 return json.loads(text_out[start:end])
-        except Exception:
+        except Exception:  # nosec
             pass
         return {}
 

@@ -85,23 +85,23 @@
 
 ### Deep Modules
 
-| Module | File | Responsibility | Dependencies |
-|--------|------|----------------|--------------|
-| **Format Router** | `main.py` | Route files by extension | pipeline |
-| **Extraction Pipeline** | `pipeline.py` | Orchestrate extraction | vparse_client, vlm_client, external_api, validation |
-| **Pre-OCR Extractor** | `pdf_metadata_extractor.py` | Quick metadata before OCR | PyPDF2, regex |
-| **Media Utils** | `media_utils.py` | Audio/video metadata via ffprobe | subprocess |
-| **VLM Client** | `vlm_client.py` | Gemma-4 vLLM integration | httpx, vllm |
-| **Image Utils** | `image_utils.py` | EXIF extraction | PIL, piexif |
-| **Validation** | `validation.py` | ISBN validation | regex |
-| **Celery Tasks** | `tasks.py` | Async task definitions | pipeline, celery |
+| Module                  | File                        | Responsibility                   | Dependencies                                        |
+| ----------------------- | --------------------------- | -------------------------------- | --------------------------------------------------- |
+| **Format Router**       | `main.py`                   | Route files by extension         | pipeline                                            |
+| **Extraction Pipeline** | `pipeline.py`               | Orchestrate extraction           | vparse_client, vlm_client, external_api, validation |
+| **Pre-OCR Extractor**   | `pdf_metadata_extractor.py` | Quick metadata before OCR        | PyPDF2, regex                                       |
+| **Media Utils**         | `media_utils.py`            | Audio/video metadata via ffprobe | subprocess                                          |
+| **VLM Client**          | `vlm_client.py`             | Gemma-4 vLLM integration         | httpx, vllm                                         |
+| **Image Utils**         | `image_utils.py`            | EXIF extraction                  | PIL, piexif                                         |
+| **Validation**          | `validation.py`             | ISBN validation                  | regex                                               |
+| **Celery Tasks**        | `tasks.py`                  | Async task definitions           | pipeline, celery                                    |
 
 ### Shallow Modules (Adapters)
 
-| Module | File | Responsibility | Dependencies |
-|--------|------|----------------|--------------|
-| **VParse Client** | `vparse_client.py` | VParse API adapter | httpx |
-| **External API** | `external_api.py` | OpenLibrary adapter | httpx |
+| Module            | File               | Responsibility      | Dependencies |
+| ----------------- | ------------------ | ------------------- | ------------ |
+| **VParse Client** | `vparse_client.py` | VParse API adapter  | httpx        |
+| **External API**  | `external_api.py`  | OpenLibrary adapter | httpx        |
 
 ---
 
@@ -197,17 +197,17 @@ JSON Result
 
 ## Technology Stack
 
-| Layer | Technology | Purpose |
-|-------|------------|---------|
-| **API** | FastAPI | REST endpoints, async |
-| **CLI** | Typer | Command-line interface |
-| **OCR** | VParse (mineru-dots) | PDF/document OCR |
-| **LLM/VLM** | Gemma-4 (google/gemma-4-E4B-it) | Unified text + vision via vLLM |
-| **Inference Engine** | vLLM + PyTorch | GPU-accelerated LLM inference |
-| **ISBN Lookup** | OpenLibrary API | Book metadata |
-| **Media** | ffprobe | Audio/video metadata |
-| **Tasks** | Celery + Redis | Async processing |
-| **Container** | Docker | Deployment |
+| Layer                | Technology                      | Purpose                        |
+| -------------------- | ------------------------------- | ------------------------------ |
+| **API**              | FastAPI                         | REST endpoints, async          |
+| **CLI**              | Typer                           | Command-line interface         |
+| **OCR**              | VParse (mineru-dots)            | PDF/document OCR               |
+| **LLM/VLM**          | Gemma-4 (google/gemma-4-E4B-it) | Unified text + vision via vLLM |
+| **Inference Engine** | vLLM + PyTorch                  | GPU-accelerated LLM inference  |
+| **ISBN Lookup**      | OpenLibrary API                 | Book metadata                  |
+| **Media**            | ffprobe                         | Audio/video metadata           |
+| **Tasks**            | Celery + Redis                  | Async processing               |
+| **Container**        | Docker                          | Deployment                     |
 
 ---
 
@@ -215,17 +215,17 @@ JSON Result
 
 ### APIs
 
-| Service | Purpose | Rate Limit |
-|---------|---------|------------|
-| VParse API | OCR and VLM | N/A (local) |
-| OpenLibrary | ISBN enrichment | 100 req/s |
+| Service     | Purpose         | Rate Limit  |
+| ----------- | --------------- | ----------- |
+| VParse API  | OCR and VLM     | N/A (local) |
+| OpenLibrary | ISBN enrichment | 100 req/s   |
 
 ### External Tools
 
-| Tool | Purpose | Required |
-|------|---------|----------|
-| ffprobe | Audio/video metadata | Yes |
-| tesseract | Lite OCR (optional) | No |
+| Tool      | Purpose              | Required |
+| --------- | -------------------- | -------- |
+| ffprobe   | Audio/video metadata | Yes      |
+| tesseract | Lite OCR (optional)  | No       |
 
 ---
 
@@ -233,14 +233,14 @@ JSON Result
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VPARSE_API_URL` | VParse API endpoint | `http://localhost:8000/file_parse` |
-| `BOOKEXTRACTOR_MODELS_DIR` | Local models directory | `./models` |
-| `VLLM_MODEL` | Gemma-4 model ID | `google/gemma-4-E4B-it` |
-| `HF_TOKEN` | HuggingFace token for model access | (required) |
-| `CELERY_BROKER_URL` | Redis broker URL | `redis://localhost:6379/0` |
-| `CELERY_RESULT_BACKEND` | Redis result backend | `redis://localhost:6379/0` |
+| Variable                   | Description                        | Default                            |
+| -------------------------- | ---------------------------------- | ---------------------------------- |
+| `VPARSE_API_URL`           | VParse API endpoint                | `http://localhost:8000/file_parse` |
+| `BOOKEXTRACTOR_MODELS_DIR` | Local models directory             | `./models`                         |
+| `VLLM_MODEL`               | Gemma-4 model ID                   | `google/gemma-4-E4B-it`            |
+| `HF_TOKEN`                 | HuggingFace token for model access | (required)                         |
+| `CELERY_BROKER_URL`        | Redis broker URL                   | `redis://localhost:6379/0`         |
+| `CELERY_RESULT_BACKEND`    | Redis result backend               | `redis://localhost:6379/0`         |
 
 ---
 
@@ -296,4 +296,4 @@ JSON Result
 
 ---
 
-*Last updated: Phase 2 implementation*
+_Last updated: Phase 2 implementation_

@@ -10,16 +10,16 @@ Phase 1 established the foundation for the metadata extraction pipeline, impleme
 
 ## Implemented Features
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| Format Router | ✅ | Unified `/extract` endpoint routing by file extension |
-| PDF Pipeline | ✅ | VParse OCR API integration for document processing |
-| Text Pipeline | ✅ | Direct LLM processing for `.md`, `.json` files |
-| Image Pipeline | ✅ | EXIF/PIL metadata extraction from images |
-| GPS Normalization | ✅ | DMS to decimal degrees conversion |
-| ISBN Extraction | ✅ | Regex extraction + OpenLibrary validation |
-| Docker Setup | ✅ | Multi-container Docker orchestration |
-| Tests | ✅ | Unit and integration test coverage |
+| Feature           | Status | Description                                           |
+| ----------------- | ------ | ----------------------------------------------------- |
+| Format Router     | ✅     | Unified `/extract` endpoint routing by file extension |
+| PDF Pipeline      | ✅     | VParse OCR API integration for document processing    |
+| Text Pipeline     | ✅     | Direct LLM processing for `.md`, `.json` files        |
+| Image Pipeline    | ✅     | EXIF/PIL metadata extraction from images              |
+| GPS Normalization | ✅     | DMS to decimal degrees conversion                     |
+| ISBN Extraction   | ✅     | Regex extraction + OpenLibrary validation             |
+| Docker Setup      | ✅     | Multi-container Docker orchestration                  |
+| Tests             | ✅     | Unit and integration test coverage                    |
 
 ---
 
@@ -67,15 +67,15 @@ Phase 1 established the foundation for the metadata extraction pipeline, impleme
 
 ### Source Files
 
-| Module | Path | Responsibility |
-|--------|------|----------------|
-| `main.py` | `bookextractor/main.py` | FastAPI application, format router |
-| `pipeline.py` | `bookextractor/pipeline.py` | Extraction pipeline orchestrator |
-| `vparse_client.py` | `bookextractor/vparse_client.py` | VParse API client |
-| `image_utils.py` | `bookextractor/image_utils.py` | EXIF extraction utilities |
-| `models.py` | `bookextractor/models.py` | Pydantic data models |
-| `validation.py` | `bookextractor/validation.py` | ISBN validation |
-| `external_api.py` | `bookextractor/external_api.py` | OpenLibrary API client |
+| Module             | Path                             | Responsibility                     |
+| ------------------ | -------------------------------- | ---------------------------------- |
+| `main.py`          | `bookextractor/main.py`          | FastAPI application, format router |
+| `pipeline.py`      | `bookextractor/pipeline.py`      | Extraction pipeline orchestrator   |
+| `vparse_client.py` | `bookextractor/vparse_client.py` | VParse API client                  |
+| `image_utils.py`   | `bookextractor/image_utils.py`   | EXIF extraction utilities          |
+| `models.py`        | `bookextractor/models.py`        | Pydantic data models               |
+| `validation.py`    | `bookextractor/validation.py`    | ISBN validation                    |
+| `external_api.py`  | `bookextractor/external_api.py`  | OpenLibrary API client             |
 
 ### Data Models
 
@@ -115,6 +115,7 @@ class ExtractionResult(BaseModel):
 ### POST /extract
 
 **Request:**
+
 ```bash
 curl -X POST "http://localhost:8000/extract" \
   -F "file=@document.pdf" \
@@ -122,6 +123,7 @@ curl -X POST "http://localhost:8000/extract" \
 ```
 
 **Response:**
+
 ```json
 {
   "book_metadata": {
@@ -135,7 +137,7 @@ curl -X POST "http://localhost:8000/extract" \
       "author": 0.88,
       "publisher": 0.75,
       "isbn": 1.0,
-      "published_date": 0.70
+      "published_date": 0.7
     }
   }
 }
@@ -144,8 +146,9 @@ curl -X POST "http://localhost:8000/extract" \
 ### GET /health
 
 **Response:**
+
 ```json
-{"status": "ok"}
+{ "status": "ok" }
 ```
 
 ---
@@ -187,12 +190,12 @@ curl -X POST "http://localhost:8000/extract" \
 
 ### Services
 
-| Service | Dockerfile | Description |
-|---------|------------|-------------|
+| Service         | Dockerfile                 | Description                         |
+| --------------- | -------------------------- | ----------------------------------- |
 | `bookextractor` | `Dockerfile.bookextractor` | FastAPI application with vLLM + GPU |
-| `vparse` | `Dockerfile.vparse` | VParse OCR API (CPU-only) |
-| `vparse-lite` | `Dockerfile.vparse.lite` | Tesseract-only OCR (lightweight) |
-| `vparse-gpu` | `Dockerfile.vparse.gpu` | VParse with GPU support for OCR |
+| `vparse`        | `Dockerfile.vparse`        | VParse OCR API (CPU-only)           |
+| `vparse-lite`   | `Dockerfile.vparse.lite`   | Tesseract-only OCR (lightweight)    |
+| `vparse-gpu`    | `Dockerfile.vparse.gpu`    | VParse with GPU support for OCR     |
 
 ### Launch
 
@@ -204,12 +207,12 @@ docker-compose up --build
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VPARSE_API_URL` | VParse API endpoint | `http://localhost:8000/file_parse` |
-| `BOOKEXTRACTOR_MODELS_DIR` | Local models directory | `./models` |
-| `VLLM_MODEL` | Gemma-4 model ID | `google/gemma-4-E4B-it` |
-| `HF_TOKEN` | HuggingFace token for model access | (required) |
+| Variable                   | Description                        | Default                            |
+| -------------------------- | ---------------------------------- | ---------------------------------- |
+| `VPARSE_API_URL`           | VParse API endpoint                | `http://localhost:8000/file_parse` |
+| `BOOKEXTRACTOR_MODELS_DIR` | Local models directory             | `./models`                         |
+| `VLLM_MODEL`               | Gemma-4 model ID                   | `google/gemma-4-E4B-it`            |
+| `HF_TOKEN`                 | HuggingFace token for model access | (required)                         |
 
 ---
 
@@ -217,13 +220,13 @@ docker-compose up --build
 
 ### Test Coverage
 
-| Test File | Coverage |
-|-----------|----------|
-| `tests/test_pipeline.py` | Pipeline processing logic |
-| `tests/test_vparse_client.py` | VParse API integration |
-| `tests/test_image_utils.py` | EXIF extraction, GPS normalization |
-| `tests/test_main.py` | API endpoints |
-| `tests/test_external_api.py` | OpenLibrary integration |
+| Test File                     | Coverage                           |
+| ----------------------------- | ---------------------------------- |
+| `tests/test_pipeline.py`      | Pipeline processing logic          |
+| `tests/test_vparse_client.py` | VParse API integration             |
+| `tests/test_image_utils.py`   | EXIF extraction, GPS normalization |
+| `tests/test_main.py`          | API endpoints                      |
+| `tests/test_external_api.py`  | OpenLibrary integration            |
 
 ### Run Tests
 
@@ -249,4 +252,4 @@ pytest tests/ -v
 
 ---
 
-*Status: Completed - All Phase 1 features implemented and tested*
+_Status: Completed - All Phase 1 features implemented and tested_

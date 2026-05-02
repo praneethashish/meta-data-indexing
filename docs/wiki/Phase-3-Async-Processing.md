@@ -43,6 +43,7 @@ Phase 3 activates the Celery async queue foundation from Phase 2, enabling distr
                               │  vLLM   │       └─────────┘
                               └─────────┘
 ```
+
                               ┌─────────────────┐
                               │   Redis Broker  │
                               │   (Task Queue)  │
@@ -56,13 +57,15 @@ Phase 3 activates the Celery async queue foundation from Phase 2, enabling distr
                └─────────┘       │(VLM)    │       │(Extract)│
                                └────┬────┘       └────┬────┘
                                     │                  │
-┌────▼────┐       ┌────▼────┐
-                               │Gemma-4  │       │ vParse  │
-                               │ vLLM    │       │  OCR    │
-                               │(text+   │       │         │
-                               │ vision) │       │         │
-                               └─────────┘       └─────────┘
-```
+
+┌────▼────┐ ┌────▼────┐
+│Gemma-4 │ │ vParse │
+│ vLLM │ │ OCR │
+│(text+ │ │ │
+│ vision) │ │ │
+└─────────┘ └─────────┘
+
+````
 
 ### Queue Configuration
 
@@ -90,7 +93,7 @@ task_soft_time_limit = 3000  # 50 min soft limit
 # Worker configuration
 worker_prefetch_multiplier = 1  # One task per worker at a time
 worker_max_tasks_per_child = 100  # Restart worker after 100 tasks
-```
+````
 
 ### 3.2 Worker Launch Commands
 
@@ -203,13 +206,13 @@ def extract_with_persistence(self, file_path: str, options: dict):
 
 ## Performance Targets
 
-| Metric | Target |
-|--------|--------|
-| Documents/hour (CPU) | 500-1000 |
-| Images/hour (GPU VLM) | 100-200 |
-| API Response (sync) | < 5s for small files |
-| Batch job start | < 30s after submission |
-| Worker recovery | < 10s after failure |
+| Metric                | Target                 |
+| --------------------- | ---------------------- |
+| Documents/hour (CPU)  | 500-1000               |
+| Images/hour (GPU VLM) | 100-200                |
+| API Response (sync)   | < 5s for small files   |
+| Batch job start       | < 30s after submission |
+| Worker recovery       | < 10s after failure    |
 
 ---
 
@@ -283,4 +286,4 @@ services:
 
 ---
 
-*Status: Planned for future implementation*
+_Status: Planned for future implementation_

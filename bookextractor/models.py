@@ -8,6 +8,7 @@ class ConfidenceScores(BaseModel):
     isbn: float = Field(0.0, ge=0.0, le=1.0)
     published_date: float = Field(0.0, ge=0.0, le=1.0)
 
+
 class BookMetadata(BaseModel):
     title: str | None = None
     author: str | None = None
@@ -15,6 +16,7 @@ class BookMetadata(BaseModel):
     isbn: str | None = None
     published_date: str | None = None
     confidence: ConfidenceScores
+
 
 class ImageMetadata(BaseModel):
     width: int
@@ -31,6 +33,7 @@ class ImageMetadata(BaseModel):
     dpi_horizontal: float | None = None
     dpi_vertical: float | None = None
 
+
 class ImageVLMMetadata(BaseModel):
     description: str | None = None
     text_content: str | None = None
@@ -38,10 +41,12 @@ class ImageVLMMetadata(BaseModel):
     scene_classification: str | None = None
     entities: list[dict] = []
 
+
 class ExtractionResult(BaseModel):
     book_metadata: BookMetadata | None = None
     image_metadata: ImageMetadata | None = None
     image_vlm_metadata: ImageVLMMetadata | None = None
+
 
 class BenchmarkResult(BaseModel):
     result: ExtractionResult
