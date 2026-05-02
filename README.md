@@ -25,6 +25,35 @@ cd bookextractor
 
 # Install dependencies and package
 uv pip install -e .
+
+# Set up Git hooks (Mandatory for contributors)
+uv run pre-commit install
+```
+
+## 🛠 Development
+
+This project uses the standard `pre-commit` framework for validation.
+
+### Git Hooks
+
+The following hooks are configured via `.pre-commit-config.yaml`:
+- **Commitizen**: Enforces conventional commit messages.
+- **Ruff**: Linting and formatting.
+- **Bandit**: Security checks.
+- **Mypy**: Static type checking.
+- **Vulture**: Dead code detection.
+- **Pytest**: Full test suite with coverage enforcement.
+
+To manually install or refresh the hooks:
+```bash
+uv run pre-commit install
+```
+
+### Manual Validation
+
+You can run the full suite of hooks manually at any time:
+```bash
+uv run pre-commit run --all-files
 ```
 
 ## 📖 Usage
@@ -36,11 +65,13 @@ On first run, BookExtractor automatically downloads `gemma-4-E4B-it-Q4_K_M.gguf`
 Projection (`MMPROJ`) is optional and only used/downloaded when you set projection env vars.
 
 Extract metadata directly to a JSON file:
+
 ```bash
 uv run bookextractor <input.pdf> <output.json>
 ```
 
 Optional overrides:
+
 ```bash
 # Use existing local files
 export VLM_MODEL_PATH=/absolute/path/to/model.gguf
@@ -52,6 +83,7 @@ export MMPROJ_MODEL_URL=https://.../mmproj.gguf
 ```
 
 Enable benchmark mode for debug info:
+
 ```bash
 uv run bookextractor <input.pdf> <output.json> --benchmark
 ```
@@ -59,9 +91,11 @@ uv run bookextractor <input.pdf> <output.json> --benchmark
 ### API (FastAPI)
 
 Start the web server:
+
 ```bash
 uv run bookextractor --api
 ```
+
 - **Swagger Docs**: `http://localhost:8000/docs`
 - **Health Check**: `GET /health`
 - **Extract**: `POST /extract` (Multipart file upload)
@@ -73,9 +107,11 @@ The project runs using Docker Compose. By default, only **BookExtractor** and it
 ### Quick Start (Metadata Indexing Only)
 
 To start only the BookExtractor service and download the Gemma LLM:
+
 ```bash
 docker compose up --build -d
 ```
+
 This builds the BookExtractor container and starts the `model-downloader` to fetch the necessary Gemma model into a shared volume.
 
 ### Running with VParse OCR Backends
@@ -83,23 +119,26 @@ This builds the BookExtractor container and starts the `model-downloader` to fet
 If you need the OCR capabilities, you can include VParse by specifying a **Docker profile**. When a VParse profile is specified, Docker Compose automatically clones the MinerU repository from Git and builds the required mode without needing local Dockerfiles.
 
 Available profiles for VParse:
+
 - `pipeline`: Multi-model, multilingual OCR using Paddle (CPU/GPU)
 - `vlm`: Vision-language model for OCR (GPU recommended)
 - `hybrid`: Combined pipeline + VLM
 
 **Example: Start BookExtractor with VParse Pipeline Mode**
+
 ```bash
 docker compose --profile pipeline up --build -d
 ```
 
-| Service | Container Port | Host Port | Description |
-|---------|---------------|-----------|-------------|
-| `bookextractor` | 8000 | **8000** | BookExtractor FastAPI service |
-| `vparse` | 8000 | **9000** | VParse (MinerU) OCR API service |
+| Service         | Container Port | Host Port | Description                     |
+| --------------- | -------------- | --------- | ------------------------------- |
+| `bookextractor` | 8000           | **8000**  | BookExtractor FastAPI service   |
+| `vparse`        | 8000           | **9000**  | VParse (MinerU) OCR API service |
 
 ### Model Persistence
 
 Models (both Gemma LLM and VParse OCR weights) are stored in a Docker named volume `models`. They are downloaded by the `model-downloader` service on first run and reused across container restarts — no re-download on rebuild. You can monitor the download progress by checking the logs:
+
 ```bash
 docker compose logs -f model-downloader
 ```
@@ -117,6 +156,7 @@ docker compose logs -f model-downloader
 ## 🤝 GitLab / CI Standards
 
 This project follows professional Python standards:
+
 - **Linting**: Complies with `ruff` standards.
 - **Packaging**: Uses `pyproject.toml` (PEP 621).
 - **Type Safety**: Pydantic v2 models for all data structures.

@@ -69,12 +69,12 @@ class VLMProcessor:
 
 ### Batch Size Guidelines
 
-| GPU VRAM | Batch Size | Images/Second |
-|----------|------------|---------------|
-| A100 80GB | 8 | ~2-3 |
-| A100 40GB | 4 | ~1.5-2 |
-| V100 32GB | 4 | ~1-1.5 |
-| T4 16GB | 2 | ~0.5-1 |
+| GPU VRAM  | Batch Size | Images/Second |
+| --------- | ---------- | ------------- |
+| A100 80GB | 8          | ~2-3          |
+| A100 40GB | 4          | ~1.5-2        |
+| V100 32GB | 4          | ~1-1.5        |
+| T4 16GB   | 2          | ~0.5-1        |
 
 ---
 
@@ -121,11 +121,11 @@ async def extract_with_cache(file_path: str, options: dict):
 
 ### Cache Invalidation
 
-| Event | Action |
-|-------|--------|
+| Event         | Action                         |
+| ------------- | ------------------------------ |
 | File modified | Invalidate cache for that file |
-| Model update | Flush all cache |
-| Manual flush | Admin API endpoint |
+| Model update  | Flush all cache                |
+| Manual flush  | Admin API endpoint             |
 
 ---
 
@@ -152,25 +152,25 @@ spec:
         app: bookextractor
     spec:
       containers:
-      - name: api
-        image: bookextractor:latest
-        ports:
-        - containerPort: 8000
-        resources:
-          limits:
-            memory: "4Gi"
-            cpu: "2"
-          requests:
-            memory: "2Gi"
-            cpu: "1"
-        env:
-        - name: CELERY_BROKER_URL
-          valueFrom:
-            secretKeyRef:
-              name: bookextractor-secrets
-              key: celery-broker-url
-        - name: VPARSE_API_URL
-          value: "http://bookextractor-vparse:8000"
+        - name: api
+          image: bookextractor:latest
+          ports:
+            - containerPort: 8000
+          resources:
+            limits:
+              memory: "4Gi"
+              cpu: "2"
+            requests:
+              memory: "2Gi"
+              cpu: "1"
+          env:
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: bookextractor-secrets
+                  key: celery-broker-url
+            - name: VPARSE_API_URL
+              value: "http://bookextractor-vparse:8000"
 ---
 apiVersion: v1
 kind: Service
@@ -180,8 +180,8 @@ spec:
   selector:
     app: bookextractor
   ports:
-  - port: 80
-    targetPort: 8000
+    - port: 80
+      targetPort: 8000
   type: ClusterIP
 ```
 
@@ -206,19 +206,20 @@ spec:
         app: bookextractor-vlm
     spec:
       containers:
-      - name: worker
-        image: bookextractor:latest
-        command: ["celery", "-A", "bookextractor.tasks", "worker", "-Q", "vlm_queue"]
-        resources:
-          limits:
-            memory: "16Gi"
-            nvidia.com/gpu: 1  # A100
-          requests:
-            memory: "8Gi"
-            nvidia.com/gpu: 1
-        env:
-        - name: CUDA_VISIBLE_DEVICES
-          value: "0"
+        - name: worker
+          image: bookextractor:latest
+          command:
+            ["celery", "-A", "bookextractor.tasks", "worker", "-Q", "vlm_queue"]
+          resources:
+            limits:
+              memory: "16Gi"
+              nvidia.com/gpu: 1 # A100
+            requests:
+              memory: "8Gi"
+              nvidia.com/gpu: 1
+          env:
+            - name: CUDA_VISIBLE_DEVICES
+              value: "0"
 ---
 apiVersion: v1
 kind: Service
@@ -228,8 +229,8 @@ spec:
   selector:
     app: bookextractor-vparse
   ports:
-  - port: 8000
-    targetPort: 8000
+    - port: 8000
+      targetPort: 8000
 ```
 
 ### HPA (Horizontal Pod Autoscaler)
@@ -248,19 +249,19 @@ spec:
   minReplicas: 3
   maxReplicas: 10
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: External
-    external:
-      metric:
-        name: redis_connected_clients
-      target:
-        type: AverageValue
-        averageValue: 100
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: External
+      external:
+        metric:
+          name: redis_connected_clients
+        target:
+          type: AverageValue
+          averageValue: 100
 ```
 
 ---
@@ -292,13 +293,13 @@ async def batch_extract_rate_limited(request: Request, files: list[UploadFile] =
 
 ### Metrics to Track
 
-| Metric | Source | Alert Threshold |
-|--------|--------|-----------------|
-| Queue depth | Redis | > 1000 |
-| Task failure rate | Celery | > 5% |
-| API latency p95 | FastAPI | > 10s |
-| GPU utilization | nvidia-smi | < 30% |
-| Worker memory | Kubernetes | > 80% |
+| Metric            | Source     | Alert Threshold |
+| ----------------- | ---------- | --------------- |
+| Queue depth       | Redis      | > 1000          |
+| Task failure rate | Celery     | > 5%            |
+| API latency p95   | FastAPI    | > 10s           |
+| GPU utilization   | nvidia-smi | < 30%           |
+| Worker memory     | Kubernetes | > 80%           |
 
 ### Dashboard Panels
 
@@ -326,14 +327,14 @@ async def batch_extract_rate_limited(request: Request, files: list[UploadFile] =
 
 ## Performance Targets
 
-| Metric | Target |
-|--------|--------|
-| Throughput (CPU) | 1000+ docs/hour |
+| Metric               | Target           |
+| -------------------- | ---------------- |
+| Throughput (CPU)     | 1000+ docs/hour  |
 | Throughput (GPU VLM) | 200+ images/hour |
-| API p95 latency | < 5s |
-| API p99 latency | < 10s |
-| Cache hit rate | > 60% |
-| Worker utilization | > 70% |
+| API p95 latency      | < 5s             |
+| API p99 latency      | < 10s            |
+| Cache hit rate       | > 60%            |
+| Worker utilization   | > 70%            |
 
 ---
 
@@ -351,4 +352,4 @@ async def batch_extract_rate_limited(request: Request, files: list[UploadFile] =
 
 ---
 
-*Status: Planned for future implementation*
+_Status: Planned for future implementation_

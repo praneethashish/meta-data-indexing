@@ -10,7 +10,7 @@ The HuggingFace cache is stored at ~/.cache/huggingface/hub/ (host bind mount).
 For Gemma-4 via vLLM, ensure HF_TOKEN is set and accept model terms at:
 https://huggingface.co/google/gemma-4-E4B-it
 """
-import os
+
 from pathlib import Path
 
 MODELS_DIR = Path("/models")
@@ -45,6 +45,7 @@ def download_pipeline_models() -> None:
         print("  ✓ Gemma model ready.")
     except Exception as e:
         print(f"  ✗ Error downloading Gemma: {e}")
+
 
 if __name__ == "__main__":
     MODELS_DIR.mkdir(parents=True, exist_ok=True)

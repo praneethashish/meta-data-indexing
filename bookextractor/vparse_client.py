@@ -1,6 +1,7 @@
 import os
+from typing import Any
+
 import httpx
-from typing import Dict, Any, Optional
 
 VPARSE_API_URL = os.getenv("VPARSE_API_URL", "http://localhost:8000/file_parse")
 
@@ -32,4 +33,3 @@ async def parse_pdf_via_vparse(file_path: str, lang: str = "en") -> dict[str, An
                 return response.json()
             except Exception as e:
                 raise RuntimeError(f"vParse API call failed: {e}") from e
-

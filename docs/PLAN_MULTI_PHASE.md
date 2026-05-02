@@ -16,16 +16,16 @@
 
 ## Technology Stack
 
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| **API Framework** | FastAPI | REST API endpoints |
-| **OCR Engine** | VParse (mineru-dots) | PDF and document OCR |
-| **LLM/VLM** | Gemma-4 (google/gemma-4-E4B-it) | Unified text + vision inference |
-| **Inference Engine** | vLLM + PyTorch | GPU-accelerated unified LLM inference |
-| **ISBN Lookup** | OpenLibrary API | Book metadata enrichment |
-| **Audio/Video** | ffprobe | Media metadata extraction |
-| **Task Queue** | Celery + Redis | Async processing foundation |
-| **Container** | Docker + Docker Compose | Deployment |
+| Component            | Technology                      | Purpose                               |
+| -------------------- | ------------------------------- | ------------------------------------- |
+| **API Framework**    | FastAPI                         | REST API endpoints                    |
+| **OCR Engine**       | VParse (mineru-dots)            | PDF and document OCR                  |
+| **LLM/VLM**          | Gemma-4 (google/gemma-4-E4B-it) | Unified text + vision inference       |
+| **Inference Engine** | vLLM + PyTorch                  | GPU-accelerated unified LLM inference |
+| **ISBN Lookup**      | OpenLibrary API                 | Book metadata enrichment              |
+| **Audio/Video**      | ffprobe                         | Media metadata extraction             |
+| **Task Queue**       | Celery + Redis                  | Async processing foundation           |
+| **Container**        | Docker + Docker Compose         | Deployment                            |
 
 ---
 
@@ -33,37 +33,37 @@
 
 ### Implemented Features
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| Format Router | ✅ | Unified `/extract` endpoint routing by file extension |
-| PDF Pipeline | ✅ | VParse OCR API integration for document processing |
-| Text Pipeline | ✅ | Direct LLM processing for `.md`, `.json` files |
-| Image Pipeline | ✅ | EXIF/PIL metadata extraction from images |
-| GPS Normalization | ✅ | DMS to decimal degrees conversion |
-| ISBN Extraction | ✅ | Regex extraction + OpenLibrary validation |
-| Docker Setup | ✅ | Multi-container Docker orchestration |
-| Tests | ✅ | Unit and integration test coverage |
+| Feature           | Status | Description                                           |
+| ----------------- | ------ | ----------------------------------------------------- |
+| Format Router     | ✅     | Unified `/extract` endpoint routing by file extension |
+| PDF Pipeline      | ✅     | VParse OCR API integration for document processing    |
+| Text Pipeline     | ✅     | Direct LLM processing for `.md`, `.json` files        |
+| Image Pipeline    | ✅     | EXIF/PIL metadata extraction from images              |
+| GPS Normalization | ✅     | DMS to decimal degrees conversion                     |
+| ISBN Extraction   | ✅     | Regex extraction + OpenLibrary validation             |
+| Docker Setup      | ✅     | Multi-container Docker orchestration                  |
+| Tests             | ✅     | Unit and integration test coverage                    |
 
 ### Components
 
-| Module | Path | Responsibility |
-|--------|------|----------------|
-| `main.py` | `bookextractor/main.py` | FastAPI application, format router |
-| `pipeline.py` | `bookextractor/pipeline.py` | Extraction pipeline orchestrator |
-| `vparse_client.py` | `bookextractor/vparse_client.py` | VParse API client |
-| `image_utils.py` | `bookextractor/image_utils.py` | EXIF extraction utilities |
-| `models.py` | `bookextractor/models.py` | Pydantic data models |
-| `validation.py` | `bookextractor/validation.py` | ISBN validation |
-| `external_api.py` | `bookextractor/external_api.py` | OpenLibrary API client |
+| Module             | Path                             | Responsibility                     |
+| ------------------ | -------------------------------- | ---------------------------------- |
+| `main.py`          | `bookextractor/main.py`          | FastAPI application, format router |
+| `pipeline.py`      | `bookextractor/pipeline.py`      | Extraction pipeline orchestrator   |
+| `vparse_client.py` | `bookextractor/vparse_client.py` | VParse API client                  |
+| `image_utils.py`   | `bookextractor/image_utils.py`   | EXIF extraction utilities          |
+| `models.py`        | `bookextractor/models.py`        | Pydantic data models               |
+| `validation.py`    | `bookextractor/validation.py`    | ISBN validation                    |
+| `external_api.py`  | `bookextractor/external_api.py`  | OpenLibrary API client             |
 
 ### Environment Variables (Phase 1)
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VPARSE_API_URL` | VParse API endpoint | `http://localhost:8000/file_parse` |
-| `BOOKEXTRACTOR_MODELS_DIR` | Local models directory | `./models` |
-| `VLLM_MODEL` | Gemma-4 model ID | `google/gemma-4-E4B-it` |
-| `HF_TOKEN` | HuggingFace token for model access | (required) |
+| Variable                   | Description                        | Default                            |
+| -------------------------- | ---------------------------------- | ---------------------------------- |
+| `VPARSE_API_URL`           | VParse API endpoint                | `http://localhost:8000/file_parse` |
+| `BOOKEXTRACTOR_MODELS_DIR` | Local models directory             | `./models`                         |
+| `VLLM_MODEL`               | Gemma-4 model ID                   | `google/gemma-4-E4B-it`            |
+| `HF_TOKEN`                 | HuggingFace token for model access | (required)                         |
 
 ---
 
@@ -146,14 +146,15 @@ def extract_pdf_metadata_pre_ocr(file_path: str) -> dict[str, Any]:
 
 **Regex Patterns:**
 
-| Field | Pattern |
-|-------|---------|
-| ISBN-10/13 | `(?:\bISBN(?:-1[03])?:?\s*)?([0-9Xx\-\s]{10,20})` |
-| Title | `<h1[^>]*>(.*?)</h1>` or metadata fields |
-| Author | `by\s+(.+?)(?:\n\|,\|$)` or metadata fields |
-| Publisher | `published\s+by\s+(.+?)(?:\n\|,\|$)` or metadata fields |
+| Field      | Pattern                                                 |
+| ---------- | ------------------------------------------------------- |
+| ISBN-10/13 | `(?:\bISBN(?:-1[03])?:?\s*)?([0-9Xx\-\s]{10,20})`       |
+| Title      | `<h1[^>]*>(.*?)</h1>` or metadata fields                |
+| Author     | `by\s+(.+?)(?:\n\|,\|$)` or metadata fields             |
+| Publisher  | `published\s+by\s+(.+?)(?:\n\|,\|$)` or metadata fields |
 
 **Merge Priority:**
+
 1. **Pre-OCR regex** (highest priority - authoritative if found)
 2. **OpenLibrary** (if valid ISBN found)
 3. **LLM extraction** (fallback)
@@ -203,6 +204,7 @@ class ImageVLMMetadata(BaseModel):
 **Changed to:** vLLM + PyTorch + HuggingFace model
 
 **Benefits:**
+
 - GPU-accelerated inference
 - Automatic batching
 - HuggingFace native support
@@ -237,11 +239,11 @@ class ExtractionPipeline:
 
 **Environment Variables:**
 
-| Variable | Description |
-|----------|-------------|
-| `VLLM_MODEL` | Gemma-4 model ID (`google/gemma-4-E4B-it`) |
-| `HF_TOKEN` | HuggingFace access token (required) |
-| `VLLM_TENSOR_PARALLEL_SIZE` | GPU count (default: 1) |
+| Variable                    | Description                                |
+| --------------------------- | ------------------------------------------ |
+| `VLLM_MODEL`                | Gemma-4 model ID (`google/gemma-4-E4B-it`) |
+| `HF_TOKEN`                  | HuggingFace access token (required)        |
+| `VLLM_TENSOR_PARALLEL_SIZE` | GPU count (default: 1)                     |
 
 ---
 
@@ -250,16 +252,19 @@ class ExtractionPipeline:
 **Status:** Code update required to match documentation
 
 **Current State (Code):**
+
 - `pipeline.py` uses `llama_cpp.Llama` for inference
 - `main.py` CLI routes to `ExtractionPipeline` which uses llama-cpp
 - No GPU acceleration, no vision support for images
 
 **Target State (Documentation):**
+
 - CLI uses same `ExtractionPipeline` as API
 - Unified vLLM engine handles both text semantic extraction AND image vision
 - Same environment variables: `VLLM_MODEL`, `HF_TOKEN`, `VLLM_TENSOR_PARALLEL_SIZE`
 
 **CLI Commands:**
+
 ```bash
 # Text file extraction - uses Gemma-4 vLLM
 bookextractor book.pdf output.json
@@ -280,6 +285,7 @@ bookextractor --api
 **Code Changes Required:**
 
 1. Replace `llama_cpp` import with `vllm`:
+
 ```python
 # Before
 from llama_cpp import Llama
@@ -289,6 +295,7 @@ from vllm import LLM, SamplingParams
 ```
 
 2. Update `ExtractionPipeline.__init__`:
+
 ```python
 # Before
 self.llm = Llama(model_path=effective_model_path, n_ctx=8192, verbose=False)
@@ -303,7 +310,8 @@ self.llm = LLM(
 ```
 
 3. Update `extract_semantic_fields` method:
-```python
+
+````python
 # Before
 output = self.llm(prompt, max_tokens=256, stop=["```"], echo=False, stream=False)
 text_out = output["choices"][0]["text"].strip()
@@ -312,11 +320,12 @@ text_out = output["choices"][0]["text"].strip()
 sampling_params = SamplingParams(temperature=0.7, max_tokens=256, stop=["```"])
 outputs = self.llm.generate([prompt], sampling_params)
 text_out = outputs[0].outputs[0].text.strip()
-```
+````
 
 4. Remove `_download_file_if_missing` and GGUF download logic (vLLM handles HuggingFace downloads natively)
 
 5. Add vision support to `process_image`:
+
 ```python
 async def process_image(self, image_path: str, benchmark: bool = False) -> dict[str, Any]:
     # EXIF extraction
@@ -335,6 +344,7 @@ async def process_image(self, image_path: str, benchmark: bool = False) -> dict[
 ```
 
 6. Create `vlm_client.py` for image vision:
+
 ```python
 from vllm import LLM, SamplingParams
 
@@ -352,13 +362,14 @@ class VLMClient:
 
 **Environment Variables for CLI:**
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VLLM_MODEL` | Model ID on HuggingFace | `google/gemma-4-E4B-it` |
-| `HF_TOKEN` | HuggingFace access token | (required) |
-| `VLLM_TENSOR_PARALLEL_SIZE` | GPU count | `1` |
+| Variable                    | Description              | Default                 |
+| --------------------------- | ------------------------ | ----------------------- |
+| `VLLM_MODEL`                | Model ID on HuggingFace  | `google/gemma-4-E4B-it` |
+| `HF_TOKEN`                  | HuggingFace access token | (required)              |
+| `VLLM_TENSOR_PARALLEL_SIZE` | GPU count                | `1`                     |
 
 **Verification:**
+
 ```bash
 # Test CLI mode
 bookextractor test.pdf output.json --benchmark
@@ -454,15 +465,15 @@ async def get_job_status(job_id: str):
 
 ### Phase 2 Summary
 
-| Feature | Module | Status |
-|---------|--------|--------|
-| Audio Metadata | `media_utils.py` | New |
-| Video Metadata | `media_utils.py` | New |
-| Pre-OCR Regex | `pdf_metadata_extractor.py` | New |
-| Image VLM (Gemma-4 vLLM) | `vlm_client.py` | New |
-| vLLM Engine | `pipeline.py` | Changed from llama-cpp |
-| OCR Format Standard | `models.py`, `pipeline.py` | Modified |
-| Celery Foundation | `tasks.py`, `celery_config.py` | New |
+| Feature                  | Module                         | Status                 |
+| ------------------------ | ------------------------------ | ---------------------- |
+| Audio Metadata           | `media_utils.py`               | New                    |
+| Video Metadata           | `media_utils.py`               | New                    |
+| Pre-OCR Regex            | `pdf_metadata_extractor.py`    | New                    |
+| Image VLM (Gemma-4 vLLM) | `vlm_client.py`                | New                    |
+| vLLM Engine              | `pipeline.py`                  | Changed from llama-cpp |
+| OCR Format Standard      | `models.py`, `pipeline.py`     | Modified               |
+| Celery Foundation        | `tasks.py`, `celery_config.py` | New                    |
 
 ---
 
@@ -477,11 +488,11 @@ async def get_job_status(job_id: str):
 
 ### Queue Configuration
 
-| Queue | Worker Type | Concurrency | Purpose |
-|-------|-------------|-------------|---------|
-| `default` | CPU | 8 | Standard extraction (PDF, text, audio, video) |
-| `vlm_queue` | GPU | 2 | Gemma-4 vLLM (text + vision unified) |
-| `celery` | CPU | 4 | Internal Celery tasks |
+| Queue       | Worker Type | Concurrency | Purpose                                       |
+| ----------- | ----------- | ----------- | --------------------------------------------- |
+| `default`   | CPU         | 8           | Standard extraction (PDF, text, audio, video) |
+| `vlm_queue` | GPU         | 2           | Gemma-4 vLLM (text + vision unified)          |
+| `celery`    | CPU         | 4           | Internal Celery tasks                         |
 
 ### Worker Launch
 
@@ -537,33 +548,35 @@ async def extract_with_cache(file_path: str, options: dict):
 
 ### Deep Modules (Testable in Isolation)
 
-| Module | Responsibility | Dependencies |
-|--------|----------------|--------------|
-| `pdf_metadata_extractor.py` | Pre-OCR text/metadata extraction | PyPDF2, regex |
-| `media_utils.py` | Audio/video metadata via ffprobe | subprocess, ffprobe |
-| `vlm_client.py` | VLM inference via Gemma-4 vLLM | vllm, transformers |
-| `validation.py` | ISBN validation | regex |
-| `image_utils.py` | EXIF extraction | PIL, piexif |
-| `pipeline.py` | Orchestration + vLLM inference | vllm, transformers |
+| Module                      | Responsibility                   | Dependencies        |
+| --------------------------- | -------------------------------- | ------------------- |
+| `pdf_metadata_extractor.py` | Pre-OCR text/metadata extraction | PyPDF2, regex       |
+| `media_utils.py`            | Audio/video metadata via ffprobe | subprocess, ffprobe |
+| `vlm_client.py`             | VLM inference via Gemma-4 vLLM   | vllm, transformers  |
+| `validation.py`             | ISBN validation                  | regex               |
+| `image_utils.py`            | EXIF extraction                  | PIL, piexif         |
+| `pipeline.py`               | Orchestration + vLLM inference   | vllm, transformers  |
 
 ### Shallow Modules (Adapters)
 
-| Module | Responsibility |
-|--------|----------------|
-| `vparse_client.py` | VParse API adapter |
-| `external_api.py` | OpenLibrary API adapter |
+| Module             | Responsibility          |
+| ------------------ | ----------------------- |
+| `vparse_client.py` | VParse API adapter      |
+| `external_api.py`  | OpenLibrary API adapter |
 
 ---
 
 ## Testing Strategy
 
 ### Unit Tests
+
 - Mock external APIs (VParse, OpenLibrary, ffprobe)
 - Test regex patterns with known inputs
 - Validate data model serialization
 - Test GPS normalization edge cases
 
 ### Integration Tests
+
 - Real VParse API calls
 - Real ffprobe execution
 - End-to-end pipeline tests
@@ -574,6 +587,7 @@ async def extract_with_cache(file_path: str, options: dict):
 ## Deployment Checklist
 
 ### Phase 2
+
 - [ ] Deploy VParse OCR backend
 - [ ] Configure `VPARSE_API_URL`
 - [ ] Add ffprobe to Docker image
@@ -585,6 +599,7 @@ async def extract_with_cache(file_path: str, options: dict):
 - [ ] Update API documentation
 
 ### Phase 3
+
 - [ ] Deploy Redis
 - [ ] Configure Celery broker/result backend
 - [ ] Launch GPU workers
@@ -593,6 +608,7 @@ async def extract_with_cache(file_path: str, options: dict):
 - [ ] Test batch processing
 
 ### Phase 4
+
 - [ ] Configure Kubernetes/Helm
 - [ ] Set up auto-scaling
 - [ ] Implement caching layer
@@ -602,14 +618,14 @@ async def extract_with_cache(file_path: str, options: dict):
 
 ## Glossary
 
-| Term | Definition |
-|------|------------|
-| **vLLM** | High-throughput LLM inference engine with GPU acceleration |
-| **VLM** | Vision Language Model - AI model that understands both images and text |
-| **Pre-OCR** | Metadata extraction performed before OCR to enable early overrides |
-| **Level 2 Extraction** | VLM-powered image description beyond basic EXIF metadata |
-| **Celery** | Async task queue for Python |
-| **Gemma-4** | Google's unified multimodal model (google/gemma-4-E4B-it) via vLLM. Handles both text and vision. |
+| Term                   | Definition                                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------- |
+| **vLLM**               | High-throughput LLM inference engine with GPU acceleration                                        |
+| **VLM**                | Vision Language Model - AI model that understands both images and text                            |
+| **Pre-OCR**            | Metadata extraction performed before OCR to enable early overrides                                |
+| **Level 2 Extraction** | VLM-powered image description beyond basic EXIF metadata                                          |
+| **Celery**             | Async task queue for Python                                                                       |
+| **Gemma-4**            | Google's unified multimodal model (google/gemma-4-E4B-it) via vLLM. Handles both text and vision. |
 
 ---
 

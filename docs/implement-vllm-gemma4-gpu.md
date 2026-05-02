@@ -13,12 +13,14 @@ Replace `llama-cpp-python` with `vllm` for GPU-accelerated inference using `goog
 ## Motivation
 
 ### Current State
+
 - Uses `llama-cpp-python` with quantized GGUF models
 - CPU-bound inference with no GPU acceleration
 - GGUF files stored in `models/` volume alongside VParse OCR models
 - Model download handled via custom `_download_file_if_missing()` function
 
 ### Target State
+
 - Uses `vllm` with native HuggingFace support
 - GPU-accelerated inference via CUDA/PyTorch
 - Model cached in host's `~/.cache/huggingface/hub/` (bind mount)
@@ -27,6 +29,7 @@ Replace `llama-cpp-python` with `vllm` for GPU-accelerated inference using `goog
 ## Scope
 
 ### In Scope
+
 - [ ] Replace `llama-cpp` import with `vllm` in `pipeline.py`
 - [ ] Update `ExtractionPipeline.__init__` to use `vllm.LLM`
 - [ ] Update `extract_semantic_fields` to use vLLM's `SamplingParams` and `.generate()` API
@@ -39,31 +42,32 @@ Replace `llama-cpp-python` with `vllm` for GPU-accelerated inference using `goog
 - [ ] Update `scripts/setup_models.py` to remove Gemma download
 
 ### Not In Scope (Future Tasks)
+
 - Image Level 2 VLM description via Gemma-4 vision
 - Audio/Video metadata extraction
 - Celery async processing
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `pyproject.toml` | Replace `llama-cpp-python` with `vllm>=0.8.0`, add `huggingface_hub` |
-| `bookextractor/pipeline.py` | Replace LLM initialization and inference API |
-| `bookextractor/models.py` | Add `ImageVLMMetadata` placeholder |
-| `bookextractor/vlm_client.py` | Create placeholder for future image VLM |
-| `.env.example` | Replace GGUF env vars with `VLLM_MODEL`, `HF_TOKEN` |
-| `Dockerfile.bookextractor` | Use `nvidia/cuda` base image |
-| `docker-compose.yml` | Add GPU resources, HF cache bind mount |
-| `tests/test_pipeline.py` | Update mocks for vLLM API |
-| `scripts/setup_models.py` | Remove Gemma download |
+| File                          | Changes                                                              |
+| ----------------------------- | -------------------------------------------------------------------- |
+| `pyproject.toml`              | Replace `llama-cpp-python` with `vllm>=0.8.0`, add `huggingface_hub` |
+| `bookextractor/pipeline.py`   | Replace LLM initialization and inference API                         |
+| `bookextractor/models.py`     | Add `ImageVLMMetadata` placeholder                                   |
+| `bookextractor/vlm_client.py` | Create placeholder for future image VLM                              |
+| `.env.example`                | Replace GGUF env vars with `VLLM_MODEL`, `HF_TOKEN`                  |
+| `Dockerfile.bookextractor`    | Use `nvidia/cuda` base image                                         |
+| `docker-compose.yml`          | Add GPU resources, HF cache bind mount                               |
+| `tests/test_pipeline.py`      | Update mocks for vLLM API                                            |
+| `scripts/setup_models.py`     | Remove Gemma download                                                |
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VLLM_MODEL` | HuggingFace model ID | `google/gemma-4-E4B-it` |
-| `HF_TOKEN` | HuggingFace access token (required for gated models) | - |
-| `VLLM_TENSOR_PARALLEL_SIZE` | GPU count | `1` |
+| Variable                    | Description                                          | Default                 |
+| --------------------------- | ---------------------------------------------------- | ----------------------- |
+| `VLLM_MODEL`                | HuggingFace model ID                                 | `google/gemma-4-E4B-it` |
+| `HF_TOKEN`                  | HuggingFace access token (required for gated models) | -                       |
+| `VLLM_TENSOR_PARALLEL_SIZE` | GPU count                                            | `1`                     |
 
 ## Storage Architecture
 
@@ -81,18 +85,20 @@ models volume (Docker):
 ## Docker Changes
 
 ### Dockerfile.bookextractor
+
 - Base image: `nvidia/cuda:12.4.0-runtime-ubuntu22.04`
 - Install `uv` for fast dependency resolution
 - Install `vllm>=0.8.0` via `uv pip install --system`
 - Set `HF_HOME=/root/.cache/huggingface/hub`
 
 ### docker-compose.yml
+
 ```yaml
 services:
   bookextractor:
     volumes:
-      - ~/.cache/huggingface/hub:/root/.cache/huggingface/hub  # HF cache
-      - models:/models                                        # VParse OCR
+      - ~/.cache/huggingface/hub:/root/.cache/huggingface/hub # HF cache
+      - models:/models # VParse OCR
     deploy:
       resources:
         reservations:
@@ -109,6 +115,7 @@ services:
 ## Code Changes
 
 ### pipeline.py - Import Change
+
 ```python
 # Before
 from llama_cpp import Llama
@@ -118,6 +125,7 @@ from vllm import LLM, SamplingParams
 ```
 
 ### pipeline.py - Initialization
+
 ```python
 # Before
 self.llm = Llama(model_path=effective_model_path, n_ctx=8192, verbose=False)
@@ -132,7 +140,8 @@ self.llm = LLM(
 ```
 
 ### pipeline.py - Inference
-```python
+
+````python
 # Before
 output = self.llm(prompt, max_tokens=256, stop=["```"], echo=False, stream=False)
 text_out = output["choices"][0]["text"].strip()
@@ -141,7 +150,7 @@ text_out = output["choices"][0]["text"].strip()
 sampling_params = SamplingParams(temperature=0.7, max_tokens=256, stop=["```"])
 outputs = self.llm.generate([prompt], sampling_params)
 text_out = outputs[0].outputs[0].text.strip()
-```
+````
 
 ## Verification
 
@@ -170,12 +179,12 @@ nvidia-smi
 
 ## Risks & Mitigations
 
-| Risk | Mitigation |
-|------|------------|
-| GPU not available | Fail fast with clear error message |
-| HF_TOKEN not set | Require token for gated Gemma model |
-| Large image size | Use `runtime` base (not `devel`), minimal deps |
-| Model download slow | Pre-populate HF cache via model-downloader |
+| Risk                | Mitigation                                     |
+| ------------------- | ---------------------------------------------- |
+| GPU not available   | Fail fast with clear error message             |
+| HF_TOKEN not set    | Require token for gated Gemma model            |
+| Large image size    | Use `runtime` base (not `devel`), minimal deps |
+| Model download slow | Pre-populate HF cache via model-downloader     |
 
 ## Labels
 

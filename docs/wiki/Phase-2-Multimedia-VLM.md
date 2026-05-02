@@ -12,15 +12,15 @@ Phase 2 extends the pipeline with audio/video metadata extraction, image Level 2
 
 ### Completed Features
 
-| Feature | Status | Module |
-|---------|--------|--------|
-| Audio Metadata | 📋 TODO | `media_utils.py` |
-| Video Metadata | 📋 TODO | `media_utils.py` |
-| Pre-OCR Regex | 📋 TODO | `pdf_metadata_extractor.py` |
-| Image VLM (Gemma-4) | 📋 TODO | `vlm_client.py` |
-| OCR Format Standard | 📋 TODO | `models.py`, `pipeline.py` |
-| Celery Foundation | 📋 TODO | `tasks.py`, `celery_config.py` |
-| API Endpoints | 📋 TODO | `main.py` |
+| Feature             | Status  | Module                         |
+| ------------------- | ------- | ------------------------------ |
+| Audio Metadata      | 📋 TODO | `media_utils.py`               |
+| Video Metadata      | 📋 TODO | `media_utils.py`               |
+| Pre-OCR Regex       | 📋 TODO | `pdf_metadata_extractor.py`    |
+| Image VLM (Gemma-4) | 📋 TODO | `vlm_client.py`                |
+| OCR Format Standard | 📋 TODO | `models.py`, `pipeline.py`     |
+| Celery Foundation   | 📋 TODO | `tasks.py`, `celery_config.py` |
+| API Endpoints       | 📋 TODO | `main.py`                      |
 
 ---
 
@@ -149,12 +149,12 @@ def extract_pdf_metadata_pre_ocr(file_path: str) -> dict[str, Any]:
 
 #### Regex Patterns
 
-| Field | Pattern |
-|-------|---------|
-| ISBN-10/13 | `(?:\bISBN(?:-1[03])?:?\s*)?([0-9Xx\-\s]{10,20})` |
-| Title | `<h1[^>]*>(.*?)</h1>` or metadata fields |
-| Author | `by\s+(.+?)(?:\n\|,\|$)` or metadata fields |
-| Publisher | `published\s+by\s+(.+?)(?:\n\|,\|$)` or metadata fields |
+| Field      | Pattern                                                 |
+| ---------- | ------------------------------------------------------- |
+| ISBN-10/13 | `(?:\bISBN(?:-1[03])?:?\s*)?([0-9Xx\-\s]{10,20})`       |
+| Title      | `<h1[^>]*>(.*?)</h1>` or metadata fields                |
+| Author     | `by\s+(.+?)(?:\n\|,\|$)` or metadata fields             |
+| Publisher  | `published\s+by\s+(.+?)(?:\n\|,\|$)` or metadata fields |
 
 #### Merge Priority
 
@@ -299,6 +299,7 @@ class OCRResult(BaseModel):
 ### 2.5 Celery Foundation (Async-Ready)
 
 **New Files:**
+
 - `bookextractor/tasks.py` - Task definitions
 - `bookextractor/celery_config.py` - Configuration
 
@@ -350,23 +351,23 @@ async def get_job_status(job_id: str):
 
 ## New Modules Summary
 
-| Module | Purpose | Status |
-|--------|---------|--------|
-| `media_utils.py` | Audio/video metadata via ffprobe | TODO |
-| `pdf_metadata_extractor.py` | Pre-OCR regex extraction | TODO |
-| `vlm_client.py` | Gemma-4 vLLM integration (text + vision) | TODO |
-| `tasks.py` | Celery task definitions | TODO |
-| `celery_config.py` | Celery configuration | TODO |
+| Module                      | Purpose                                  | Status |
+| --------------------------- | ---------------------------------------- | ------ |
+| `media_utils.py`            | Audio/video metadata via ffprobe         | TODO   |
+| `pdf_metadata_extractor.py` | Pre-OCR regex extraction                 | TODO   |
+| `vlm_client.py`             | Gemma-4 vLLM integration (text + vision) | TODO   |
+| `tasks.py`                  | Celery task definitions                  | TODO   |
+| `celery_config.py`          | Celery configuration                     | TODO   |
 
 ---
 
 ## Modified Modules
 
-| Module | Changes |
-|--------|---------|
-| `models.py` | Add AudioMetadata, VideoMetadata, ImageVLMMetadata, OCRResult, OCRSegment, NamedEntity |
-| `pipeline.py` | Integrate pre-OCR, VLM, OCR format standardization |
-| `main.py` | New extensions, new async endpoints |
+| Module        | Changes                                                                                |
+| ------------- | -------------------------------------------------------------------------------------- |
+| `models.py`   | Add AudioMetadata, VideoMetadata, ImageVLMMetadata, OCRResult, OCRSegment, NamedEntity |
+| `pipeline.py` | Integrate pre-OCR, VLM, OCR format standardization                                     |
+| `main.py`     | New extensions, new async endpoints                                                    |
 
 ---
 
@@ -384,4 +385,4 @@ async def get_job_status(job_id: str):
 
 ---
 
-*Status: Implementation in progress*
+_Status: Implementation in progress_

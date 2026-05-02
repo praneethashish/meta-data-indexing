@@ -10,16 +10,16 @@ Phase N covers planned enhancements beyond the core pipeline, including streamin
 
 ## Priority Matrix
 
-| Feature | Priority | Effort | Impact |
-|---------|----------|--------|--------|
-| Streaming OCR | Medium | High | Performance |
-| Custom VLM Prompts | Medium | Medium | Flexibility |
-| Multi-tenant Support | Medium | High | Enterprise |
-| RAG Pipeline | Medium | High | Use Cases |
-| Watermark Detection | Low | Medium | Quality |
-| Signature Detection | Low | Medium | Quality |
-| TOC Extraction | Low | Medium | Completeness |
-| Cross-lingual Translation | Low | High | Reach |
+| Feature                   | Priority | Effort | Impact       |
+| ------------------------- | -------- | ------ | ------------ |
+| Streaming OCR             | Medium   | High   | Performance  |
+| Custom VLM Prompts        | Medium   | Medium | Flexibility  |
+| Multi-tenant Support      | Medium   | High   | Enterprise   |
+| RAG Pipeline              | Medium   | High   | Use Cases    |
+| Watermark Detection       | Low      | Medium | Quality      |
+| Signature Detection       | Low      | Medium | Quality      |
+| TOC Extraction            | Low      | Medium | Completeness |
+| Cross-lingual Translation | Low      | High   | Reach        |
 
 ---
 
@@ -82,12 +82,12 @@ Allow users to define custom prompts for image description based on their specif
 
 ### Use Cases
 
-| Tenant Type | Custom Prompt |
-|-------------|--------------|
-| Library | "Describe book covers, spines, and dust jackets" |
-| Archive | "Identify photographs, maps, and historical documents" |
-| Medical | "Extract medical images, charts, and diagrams" |
-| Legal | "Identify signatures, stamps, and official seals" |
+| Tenant Type | Custom Prompt                                          |
+| ----------- | ------------------------------------------------------ |
+| Library     | "Describe book covers, spines, and dust jackets"       |
+| Archive     | "Identify photographs, maps, and historical documents" |
+| Medical     | "Extract medical images, charts, and diagrams"         |
+| Legal       | "Identify signatures, stamps, and official seals"      |
 
 ### Implementation
 
@@ -376,14 +376,14 @@ async def translate_metadata(
 
 ## Backlog Items
 
-| Item | Description | Blocking |
-|------|-------------|----------|
-| Custom OCR languages | Support additional PaddleOCR languages | None |
-| PDF/A extraction | Extract from PDF/A archival format | None |
-| Table to CSV | Convert detected tables to CSV | TOC extraction |
-| Barcode detection | Detect ISBN barcodes | None |
-| QR code extraction | Extract URLs from QR codes | None |
+| Item                 | Description                            | Blocking       |
+| -------------------- | -------------------------------------- | -------------- |
+| Custom OCR languages | Support additional PaddleOCR languages | None           |
+| PDF/A extraction     | Extract from PDF/A archival format     | None           |
+| Table to CSV         | Convert detected tables to CSV         | TOC extraction |
+| Barcode detection    | Detect ISBN barcodes                   | None           |
+| QR code extraction   | Extract URLs from QR codes             | None           |
 
 ---
 
-*Status: Future enhancements - priority and timeline to be determined*
+_Status: Future enhancements - priority and timeline to be determined_

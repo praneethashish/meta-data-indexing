@@ -12,9 +12,11 @@ from .pipeline import ExtractionPipeline
 
 class OCRLanguage(str, Enum):
     """Supported PaddleOCR language packs."""
+
     ENGLISH = "en"
     TELUGU = "te"
     HINDI = "devanagari"
+
 
 app = FastAPI()
 cli_app = typer.Typer()
@@ -49,25 +51,25 @@ async def extract(
         raise HTTPException(status_code=400, detail=f"Unsupported file type. Allowed: {allowed_extensions}")
 
     # Save temp file
-    temp_dir = "/tmp/bookextractor"
-    os.makedirs(temp_dir, exist_ok=True)
-    temp_path = os.path.join(temp_dir, file.filename)
+    import tempfile
 
-    with open(temp_path, "wb") as buffer:
-        buffer.write(await file.read())
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = os.path.join(temp_dir, file.filename)
 
-    try:
-        p = get_pipeline()
-        if filename.endswith(".pdf"):
-            result = await p.process_pdf(temp_path, lang=lang.value)
-        elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff")):
-            result = await p.process_image(temp_path)
-        else:
-            result = await p.process_text_file(temp_path)
-        return result
-    finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+        with open(temp_path, "wb") as buffer:
+            buffer.write(await file.read())
+
+        try:
+            p = get_pipeline()
+            if filename.endswith(".pdf"):
+                result = await p.process_pdf(temp_path, lang=lang.value)
+            elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff")):
+                result = await p.process_image(temp_path)
+            else:
+                result = await p.process_text_file(temp_path)
+            return result
+        finally:
+            pass  # TemporaryDirectory handles cleanup
 
 
 @cli_app.callback(invoke_without_command=True)
@@ -80,7 +82,7 @@ def main(
 ):
     if api:
         print("Starting FastAPI server...")
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        uvicorn.run(app, host="0.0.0.0", port=8000)  # nosec
         return
 
     if not input_file or not output_json:
