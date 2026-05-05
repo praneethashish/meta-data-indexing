@@ -4,13 +4,13 @@ A production-ready Python package for extracting structured metadata from scanne
 
 ## 🚀 Overview
 
-`bookextractor` is designed for high-accuracy metadata extraction from noisy, layout-agnostic scans. It uses a multi-stage pipeline combining adaptive region extraction, multilingual OCR, and a local Large Language Model (Gemma) to ensure validation-first results.
+`bookextractor` is designed for high-accuracy metadata extraction from noisy, layout-agnostic scans. It uses a multi-stage pipeline combining adaptive region extraction, multilingual OCR, and a local Vision Language Model (Qwen2.5-VL) to ensure validation-first results.
 
 ## ✨ Key Features
 
 - **Adaptive Region Extraction**: Automatically identifies and crops high-signal areas (ISBN, Publisher info).
 - **Multilingual Support**: Parallel OCR processing for English, Hindi, and Telugu.
-- **Local LLM Integration**: Uses `gemma-4-E4B-it` (GGUF) for semantic field extraction without data leaving your machine.
+- **Local VLM Integration**: Uses `Qwen/Qwen2.5-VL-7B-Instruct` via vLLM for semantic field extraction without data leaving your machine.
 - **Deterministic Validation**: Strict ISBN checksum verification; zero hallucinations for rigid fields.
 - **Multi-Source Evidence**: Merges candidates across multiple pages and performs external API lookups (Open Library).
 
@@ -60,12 +60,11 @@ uv run pre-commit run --all-files
 
 ### CLI
 
-The CLI supports both the legacy shortcut form and explicit subcommands.
+The CLI uses explicit subcommands for all operations.
 
-Extract metadata directly to a JSON file:
+Extract metadata from a PDF/image to JSON:
 
 ```bash
-uv run bookextractor input.pdf output.json
 uv run bookextractor extract input.pdf output.json
 ```
 
@@ -82,12 +81,28 @@ Enable benchmark mode for debug info:
 uv run bookextractor extract input.pdf output.json --benchmark
 ```
 
+### Environment Variables
+
+Configure the VLM inference via environment variables:
+
+| Variable                      | Description                          | Default                     |
+| ----------------------------- | ------------------------------------ | --------------------------- |
+| `VLLM_MODEL`                  | HuggingFace model ID                 | `Qwen/Qwen2.5-VL-7B-Instruct` |
+| `VLLM_GPU_MEMORY_UTILIZATION` | GPU memory fraction (0.0-1.0)        | `0.85`                      |
+| `VLLM_DTYPE`                  | Model dtype: `bfloat16` or `float16` | `bfloat16`                  |
+| `VLLM_TENSOR_PARALLEL_SIZE`   | Number of GPUs to use                | `1`                         |
+
+**Note:** For older GPUs (Tesla T4, compute capability < 8.0), set `VLLM_DTYPE=float16`:
+
+```bash
+VLLM_GPU_MEMORY_UTILIZATION=0.5 VLLM_DTYPE=float16 uv run bookextractor extract --lang te input.pdf output.json
+```
+
 ### API (FastAPI)
 
 Start the web server:
 
 ```bash
-uv run bookextractor --api
 uv run bookextractor api
 uv run bookextractor api --host 0.0.0.0 --port 8000
 ```
@@ -145,7 +160,7 @@ docker compose logs -f model-downloader
 2.  **Adaptive Cropping**: Searches for keywords (ISBN, Edition) to create high-probability crops.
 3.  **OCR Pass**: Dual-pass EasyOCR (English+Telugu, English+Hindi).
 4.  **ISBN Validation**: Regex + Checksum (Modulo 10/11).
-5.  **Semantic Extraction**: Gemma LLM processes OCR text for Title, Author, and Publisher.
+5.  **Semantic Extraction**: Qwen2.5-VL-7B via vLLM processes OCR text for Title, Author, and Publisher.
 6.  **External Verification**: Valid ISBNs are checked against Open Library API.
 7.  **Merge & Score**: Field-wise merging with confidence scoring.
 
