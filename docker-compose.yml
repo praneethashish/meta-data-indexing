@@ -8,17 +8,14 @@ services:
       - "8000:8000"
     environment:
       - VPARSE_API_URL=http://vparse:8000/file_parse
-      - VLLM_MODEL=google/gemma-4-E4B-it
-      - HF_TOKEN=${HF_TOKEN}
+      - VLLM_MODEL=/models/vllm/google/gemma-4-E4B-it
       - VLLM_TENSOR_PARALLEL_SIZE=1
+      - HF_HOME=/models/huggingface
     volumes:
-      - ~/.cache/huggingface/hub:/root/.cache/huggingface/hub
       - models:/models
     depends_on:
       model-downloader:
         condition: service_completed_successfully
-      vparse:
-        condition: service_started
     deploy:
       resources:
         reservations:
@@ -26,22 +23,6 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-
-  vparse:
-    build:
-      context: .
-      dockerfile: ${VPARSE_DOCKERFILE:-Dockerfile.vparse}
-    image: vparse:latest
-    ports:
-      - "9000:8000"
-    environment:
-      - MODELSCOPE_CACHE=/models
-      - HF_HOME=/models
-    volumes:
-      - models:/models
-    depends_on:
-      model-downloader:
-        condition: service_completed_successfully
 
   model-downloader:
     build:
@@ -51,8 +32,10 @@ services:
       - models:/models
       - ./scripts/setup_models.py:/app/setup_models.py
     environment:
-      - MODELSCOPE_CACHE=/models
-      - HF_HOME=/models
+      - VLLM_MODEL_ID=google/gemma-4-E4B-it
+      - VLLM_MODEL_PATH=/models/vllm/google/gemma-4-E4B-it
+      - MODELSCOPE_CACHE=/models/modelscope
+      - HF_HOME=/models/huggingface
     command: python -u /app/setup_models.py
 
   # ---------------------------------------------------------
@@ -75,11 +58,10 @@ services:
     environment:
       - VPARSE_MODEL_SOURCE=huggingface
       - VPARSE_PREFETCH_MODELS=pipeline
-      - MODELSCOPE_CACHE=/models
-      - HF_HOME=/models
+      - MODELSCOPE_CACHE=/models/modelscope
+      - HF_HOME=/models/huggingface
     volumes:
       - models:/models
-      - models:/root/.cache/huggingface
     ulimits:
       memlock: -1
       stack: 67108864
@@ -112,11 +94,10 @@ services:
     environment:
       - VPARSE_MODEL_SOURCE=huggingface
       - VPARSE_PREFETCH_MODELS=vlm
-      - MODELSCOPE_CACHE=/models
-      - HF_HOME=/models
+      - MODELSCOPE_CACHE=/models/modelscope
+      - HF_HOME=/models/huggingface
     volumes:
       - models:/models
-      - models:/root/.cache/huggingface
     ulimits:
       memlock: -1
       stack: 67108864
@@ -157,11 +138,10 @@ services:
     environment:
       - VPARSE_MODEL_SOURCE=huggingface
       - VPARSE_PREFETCH_MODELS=all
-      - MODELSCOPE_CACHE=/models
-      - HF_HOME=/models
+      - MODELSCOPE_CACHE=/models/modelscope
+      - HF_HOME=/models/huggingface
     volumes:
       - models:/models
-      - models:/root/.cache/huggingface
     ulimits:
       memlock: -1
       stack: 67108864

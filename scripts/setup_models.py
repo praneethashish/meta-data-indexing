@@ -1,59 +1,49 @@
-"""Download VParse OCR models into /models volume.
+"""Download required runtime models into the shared Docker volume.
 
 Usage:
     python setup_models.py
-
-Note: Gemma-4 LLM is no longer downloaded here.
-vLLM downloads models directly from HuggingFace using HF_TOKEN.
-The HuggingFace cache is stored at ~/.cache/huggingface/hub/ (host bind mount).
-
-For Gemma-4 via vLLM, ensure HF_TOKEN is set and accept model terms at:
-https://huggingface.co/google/gemma-4-E4B-it
 """
 
+import os
 from pathlib import Path
 
-MODELS_DIR = Path("/models")
+from huggingface_hub import snapshot_download
 
-PIPELINE_HF_REPO = "opendatalab/PDF-Extract-Kit-1.0"
-
-PIPELINE_PATTERNS = [
-    "models/Layout/YOLO/*",
-    "models/MFD/YOLO/*",
-    "models/MFR/unimernet_hf_small_2503/*",
-    "models/MFR/pp_formulanet_plus_m/*",
-    "models/OCR/paddleocr_torch/*",
-    "models/ReadingOrder/layout_reader/*",
-    "models/TabRec/*",
-    "models/TabCls/*",
-    "models/OriCls/*",
-    "models/README.md",
-]
+DEFAULT_MODEL_ID = "google/gemma-4-E4B-it"
+DEFAULT_MODEL_PATH = "/models/vllm/google/gemma-4-E4B-it"
 
 
-def download_pipeline_models() -> None:
-    """Download only the pipeline/paddle OCR models from HuggingFace."""
-    print("\n── Downloading Pipeline/Paddle OCR models ──")
+def _path_has_files(path: Path) -> bool:
+    return path.exists() and any(path.iterdir())
+
+
+def download_llm() -> None:
+    model_id = os.getenv("VLLM_MODEL_ID", DEFAULT_MODEL_ID)
+    target_path = Path(os.getenv("VLLM_MODEL_PATH", DEFAULT_MODEL_PATH))
+    hf_home = Path(os.getenv("HF_HOME", "/models/huggingface"))
+
+    target_path.mkdir(parents=True, exist_ok=True)
+    hf_home.mkdir(parents=True, exist_ok=True)
+
+    if _path_has_files(target_path):
+        print(f"\n── LLM already present at {target_path}; skipping download ──")
+        return
+
+    print(f"\n── Downloading LLM ({model_id}) to {target_path} ──")
     try:
-        from huggingface_hub import snapshot_download
-
         snapshot_download(
-            repo_id=PIPELINE_HF_REPO,
-            local_dir=MODELS_DIR / "opendatalab" / "PDF-Extract-Kit-1.0",
-            allow_patterns=PIPELINE_PATTERNS,
+            repo_id=model_id,
+            local_dir=str(target_path),
         )
-        print("  ✓ Gemma model ready.")
+        print(f"  ✓ LLM model {model_id} ready at {target_path}.")
     except Exception as e:
-        print(f"  ✗ Error downloading Gemma: {e}")
+        raise RuntimeError(f"Failed to download LLM model {model_id}: {e}") from e
 
 
 if __name__ == "__main__":
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-
-    download_pipeline_models()
+    download_llm()
 
     print("\n══════════════════════════")
-    print("   ALL MODELS READY")
+    print("   ALL PREFETCH MODELS READY")
     print("══════════════════════════")
-    print("\nNote: Gemma-4 LLM is downloaded by vLLM from HuggingFace.")
-    print("Ensure HF_TOKEN is set and ~/.cache/huggingface/hub is mounted.\n")
+    print("\nNote: Models are stored in the shared Docker volume and reused across container restarts.\n")

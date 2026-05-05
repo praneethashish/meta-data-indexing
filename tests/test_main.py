@@ -186,6 +186,7 @@ def test_cli_pdf_routing(tmp_path):
 
         assert result.exit_code == 0
         mock_pipeline.process_pdf.assert_called_once()
+        assert mock_pipeline.process_pdf.call_args.kwargs["lang"] == "en"
 
 
 def test_cli_image_routing(tmp_path):
@@ -238,6 +239,41 @@ def test_cli_missing_arguments():  # noqa: ARG001
     result = runner.invoke(cli_app, [])
 
     assert result.exit_code == 1
+
+
+def test_cli_extract_command_pdf_with_lang(tmp_path):
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+    input_file = tmp_path / "test.pdf"
+    input_file.write_bytes(b"%PDF-1.4\n")
+    output_file = tmp_path / "output.json"
+
+    mock_pipeline = MagicMock()
+    mock_pipeline.process_pdf = AsyncMock(return_value={"book_metadata": {"title": "Test"}})
+
+    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
+        result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file), "--lang", "te"])
+
+        assert result.exit_code == 0
+        mock_pipeline.process_pdf.assert_called_once()
+        assert mock_pipeline.process_pdf.call_args.kwargs["lang"] == "te"
+
+
+def test_cli_api_command():
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+
+    with patch("bookextractor.main.uvicorn.run") as mock_run:
+        result = runner.invoke(cli_app, ["api", "--host", "127.0.0.1", "--port", "9001"])
+
+        assert result.exit_code == 0
+        mock_run.assert_called_once_with(app, host="127.0.0.1", port=9001)
     assert "Missing arguments" in result.output
 
 

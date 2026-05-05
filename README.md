@@ -60,32 +60,26 @@ uv run pre-commit run --all-files
 
 ### CLI
 
-On first run, BookExtractor automatically downloads `gemma-4-E4B-it-Q4_K_M.gguf` from `unsloth/gemma-4-E4B-it-GGUF` into `./models` if it is missing.
-
-Projection (`MMPROJ`) is optional and only used/downloaded when you set projection env vars.
+The CLI supports both the legacy shortcut form and explicit subcommands.
 
 Extract metadata directly to a JSON file:
 
 ```bash
-uv run bookextractor <input.pdf> <output.json>
+uv run bookextractor input.pdf output.json
+uv run bookextractor extract input.pdf output.json
 ```
 
-Optional overrides:
+Use a specific OCR language for PDFs:
 
 ```bash
-# Use existing local files
-export VLM_MODEL_PATH=/absolute/path/to/model.gguf
-export MMPROJ_MODEL_PATH=/absolute/path/to/mmproj.gguf
-
-# Or customize download URLs
-export VLM_MODEL_URL=https://.../model.gguf
-export MMPROJ_MODEL_URL=https://.../mmproj.gguf
+uv run bookextractor extract input.pdf output.json --lang te
+uv run bookextractor extract input.pdf output.json --lang devanagari
 ```
 
 Enable benchmark mode for debug info:
 
 ```bash
-uv run bookextractor <input.pdf> <output.json> --benchmark
+uv run bookextractor extract input.pdf output.json --benchmark
 ```
 
 ### API (FastAPI)
@@ -94,6 +88,8 @@ Start the web server:
 
 ```bash
 uv run bookextractor --api
+uv run bookextractor api
+uv run bookextractor api --host 0.0.0.0 --port 8000
 ```
 
 - **Swagger Docs**: `http://localhost:8000/docs`
@@ -112,7 +108,7 @@ To start only the BookExtractor service and download the Gemma LLM:
 docker compose up --build -d
 ```
 
-This builds the BookExtractor container and starts the `model-downloader` to fetch the necessary Gemma model into a shared volume.
+This builds the BookExtractor container and starts the `model-downloader` to fetch the Gemma model into a shared volume.
 
 ### Running with VParse OCR Backends
 
