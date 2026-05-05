@@ -182,7 +182,7 @@ def test_cli_pdf_routing(tmp_path):
     mock_pipeline.process_pdf = AsyncMock(return_value={"book_metadata": {"title": "Test"}})
 
     with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        result = runner.invoke(cli_app, [str(input_file), str(output_file)])
+        result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file)])
 
         assert result.exit_code == 0
         mock_pipeline.process_pdf.assert_called_once()
@@ -203,7 +203,7 @@ def test_cli_image_routing(tmp_path):
     mock_pipeline.process_image = AsyncMock(return_value={"image_metadata": {"width": 100}})
 
     with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        result = runner.invoke(cli_app, [str(input_file), str(output_file)])
+        result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file)])
 
         assert result.exit_code == 0
         mock_pipeline.process_image.assert_called_once()
@@ -223,7 +223,7 @@ def test_cli_text_file_routing(tmp_path):
     mock_pipeline.process_text_file = AsyncMock(return_value={"book_metadata": {"title": "Test"}})
 
     with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        result = runner.invoke(cli_app, [str(input_file), str(output_file)])
+        result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file)])
 
         assert result.exit_code == 0
         mock_pipeline.process_text_file.assert_called_once()
@@ -236,9 +236,9 @@ def test_cli_missing_arguments():  # noqa: ARG001
 
     runner = CliRunner()
 
-    result = runner.invoke(cli_app, [])
+    result = runner.invoke(cli_app, ["extract"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
 
 
 def test_cli_extract_command_pdf_with_lang(tmp_path):
@@ -257,7 +257,7 @@ def test_cli_extract_command_pdf_with_lang(tmp_path):
     with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
         result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file), "--lang", "te"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 0, f"Exit code was {result.exit_code}, output: {result.output}"
         mock_pipeline.process_pdf.assert_called_once()
         assert mock_pipeline.process_pdf.call_args.kwargs["lang"] == "te"
 
@@ -272,9 +272,11 @@ def test_cli_api_command():
     with patch("bookextractor.main.uvicorn.run") as mock_run:
         result = runner.invoke(cli_app, ["api", "--host", "127.0.0.1", "--port", "9001"])
 
-        assert result.exit_code == 0
-        mock_run.assert_called_once_with(app, host="127.0.0.1", port=9001)
-    assert "Missing arguments" in result.output
+        assert result.exit_code == 0, f"Exit code was {result.exit_code}, output: {result.output}"
+        mock_run.assert_called_once()
+        assert mock_run.call_args[0][0] == app
+        assert mock_run.call_args[1]["host"] == "127.0.0.1"
+        assert mock_run.call_args[1]["port"] == 9001
 
 
 def test_get_pipeline_initialization():
@@ -302,7 +304,7 @@ def test_cli_unsupported_file_type_hits_else(tmp_path):
     output_file = tmp_path / "output.json"
 
     with patch("bookextractor.main.get_pipeline"):
-        result = runner.invoke(cli_app, [str(input_file), str(output_file)])
+        result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file)])
         assert result.exit_code == 1
         assert "Unsupported file type" in result.output
 
@@ -314,7 +316,7 @@ def test_cli_api_mode():
 
     runner = CliRunner()
     with patch("uvicorn.run") as mock_run:
-        result = runner.invoke(cli_app, ["--api"])
+        result = runner.invoke(cli_app, ["api"])
         assert result.exit_code == 0
         mock_run.assert_called_once()
         args, kwargs = mock_run.call_args

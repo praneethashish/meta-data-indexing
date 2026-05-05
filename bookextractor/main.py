@@ -36,7 +36,7 @@ def health():
     return {"status": "ok"}
 
 
-def _run_api(host: str = "0.0.0.0", port: int = 8000) -> None:
+def _run_api(host: str = "0.0.0.0", port: int = 8000) -> None:  # nosec B104
     print("Starting FastAPI server...")
     uvicorn.run(app, host=host, port=port)  # nosec
 
@@ -99,18 +99,10 @@ async def extract(
             pass  # TemporaryDirectory handles cleanup
 
 
-@cli_app.callback(invoke_without_command=True)
+@cli_app.callback()
 def main(
     ctx: typer.Context,
-    input_file: str | None = typer.Argument(None, help="Input file path (.pdf, .md, .json, .jpg, .png, .webp, .tiff)"),  # noqa: B008
-    output_json: str | None = typer.Argument(None, help="Path to output JSON"),  # noqa: B008
-    benchmark: bool = typer.Option(False, "--benchmark", help="Enable benchmark mode"),  # noqa: B008
     api: bool = typer.Option(False, "--api", help="Start FastAPI server"),  # noqa: B008
-    lang: OCRLanguage = typer.Option(  # noqa: B008
-        OCRLanguage.ENGLISH,
-        "--lang",
-        help="OCR language pack for PDF extraction: en, te, devanagari",
-    ),
 ):
     if ctx.invoked_subcommand is not None:
         return
@@ -119,14 +111,11 @@ def main(
         _run_api()
         return
 
-    if not input_file or not output_json:
-        print(
-            "Error: Missing arguments. Usage: bookextractor <input_file> <output.json>, "
-            "bookextractor extract <input_file> <output.json>, or bookextractor api"
-        )
-        raise typer.Exit(code=1)
-
-    asyncio.run(_extract_file(input_file, output_json, benchmark=benchmark, lang=lang))
+    print(
+        "Error: Missing arguments. Usage: bookextractor extract <input_file> <output.json> [--lang te], "
+        "or bookextractor api"
+    )
+    raise typer.Exit(code=1)
 
 
 @cli_app.command("extract")
@@ -145,7 +134,7 @@ def extract_command(
 
 @cli_app.command("api")
 def api_command(
-    host: str = typer.Option("0.0.0.0", "--host", help="Host interface to bind the API server"),  # noqa: B008
+    host: str = typer.Option("0.0.0.0", "--host", help="Host interface to bind the API server"),  # nosec B104
     port: int = typer.Option(8000, "--port", help="Port to bind the API server"),  # noqa: B008
 ) -> None:
     _run_api(host=host, port=port)

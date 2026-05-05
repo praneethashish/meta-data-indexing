@@ -21,11 +21,12 @@ class ExtractionPipeline:
         model = model_id or os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct")
         tensor_parallel_size = int(os.getenv("VLLM_TENSOR_PARALLEL_SIZE", "1"))
         gpu_memory_utilization = float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "0.85"))
+        dtype = os.getenv("VLLM_DTYPE", "bfloat16")
 
         self.llm = LLM(
             model=model,
             tensor_parallel_size=tensor_parallel_size,
-            dtype="bfloat16",
+            dtype=dtype,
             max_model_len=8192,
             gpu_memory_utilization=gpu_memory_utilization,
         )

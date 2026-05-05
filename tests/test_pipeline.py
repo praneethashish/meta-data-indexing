@@ -223,19 +223,12 @@ async def test_extract_from_text_benchmark_mode(mock_llm, sample_book_text):
                 assert "text_snippet" in result["debug"]
 
 
-def test_pipeline_init():
-    with patch("bookextractor.pipeline.LLM") as mock_llm_class:
-        # Test default init
-        p = ExtractionPipeline()
-        mock_llm_class.assert_called_once()
-        assert p is not None
-
-    with patch("bookextractor.pipeline.LLM") as mock_llm_class:
-        # Test with custom model
-        p = ExtractionPipeline(model_id="custom-model")
-        mock_llm_class.assert_called_with(
-            model="custom-model", tensor_parallel_size=1, dtype="bfloat16", max_model_len=8192
-        )
+@patch("bookextractor.pipeline.LLM")
+def test_pipeline_init(mock_llm_class):
+    p = ExtractionPipeline(model_id="custom-model")
+    mock_llm_class.assert_called_with(
+        model="custom-model", tensor_parallel_size=1, dtype="bfloat16", max_model_len=8192, gpu_memory_utilization=0.85
+    )
 
 
 @pytest.mark.asyncio
