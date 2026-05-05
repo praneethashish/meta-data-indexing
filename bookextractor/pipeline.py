@@ -18,14 +18,16 @@ DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "
 
 class ExtractionPipeline:
     def __init__(self, model_id: str | None = None):
-        model = model_id or os.getenv("VLLM_MODEL", "google/gemma-4-E4B-it")
+        model = model_id or os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct")
         tensor_parallel_size = int(os.getenv("VLLM_TENSOR_PARALLEL_SIZE", "1"))
+        gpu_memory_utilization = float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "0.85"))
 
         self.llm = LLM(
             model=model,
             tensor_parallel_size=tensor_parallel_size,
             dtype="bfloat16",
             max_model_len=8192,
+            gpu_memory_utilization=gpu_memory_utilization,
         )
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
