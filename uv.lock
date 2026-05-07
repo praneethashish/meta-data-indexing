@@ -446,9 +446,12 @@ requires-dist = [
     { name = "vulture", specifier = ">=2.0" },
 ]
 
+<<<<<<< HEAD
 [package.metadata.requires-dev]
 dev = []
 
+=======
+>>>>>>> 2be131a (fix(ci): modify ci dependencies to fix pipeline)
 [[package]]
 name = "cachetools"
 version = "7.1.0"
