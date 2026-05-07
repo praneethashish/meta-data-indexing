@@ -224,10 +224,19 @@ async def test_extract_from_text_benchmark_mode(mock_vlm_client, sample_book_tex
                 assert "text_snippet" in result["debug"]
 
 
+<<<<<<< HEAD
 @patch("bookextractor.vlm_client.VLMClient.get_instance")
 def test_pipeline_init(mock_vlm_instance):
     _ = ExtractionPipeline(model_id="custom-model")
     mock_vlm_instance.assert_called_with(model_id="custom-model", max_model_len=4096)
+=======
+@patch("bookextractor.pipeline.LLM")
+def test_pipeline_init(mock_llm_class):
+    ExtractionPipeline(model_id="custom-model")
+    mock_llm_class.assert_called_with(
+        model="custom-model", tensor_parallel_size=1, dtype="bfloat16", max_model_len=8192, gpu_memory_utilization=0.85
+    )
+>>>>>>> 2f2360c (test(lint): fixed linting issues)
 
 
 @pytest.mark.asyncio
