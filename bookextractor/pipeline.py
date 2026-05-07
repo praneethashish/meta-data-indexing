@@ -3,7 +3,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 from vllm import SamplingParams
 
@@ -29,8 +29,27 @@ DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "
 
 
 class ExtractionPipeline:
+<<<<<<< HEAD
     def __init__(self, model_id: str | None = None, max_model_len: int = 4096):
         self.vlm_client = VLMClient.get_instance(model_id=model_id, max_model_len=max_model_len)
+=======
+    def __init__(self, model_id: str | None = None):
+        model = str(model_id or os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct"))
+        tensor_parallel_size = int(os.getenv("VLLM_TENSOR_PARALLEL_SIZE", "1"))
+        gpu_memory_utilization = float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "0.85"))
+        dtype = cast(
+            Literal["auto", "half", "float16", "bfloat16", "float", "float32"],
+            os.getenv("VLLM_DTYPE", "bfloat16"),
+        )
+
+        self.llm = LLM(
+            model=model,
+            tensor_parallel_size=tensor_parallel_size,
+            dtype=dtype,
+            max_model_len=8192,
+            gpu_memory_utilization=gpu_memory_utilization,
+        )
+>>>>>>> 4f58726 (fix(pipeline): improve json parsing and increase LLM context window)
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         # Call vParse OCR API with the selected language
@@ -80,6 +99,7 @@ class ExtractionPipeline:
         return result.dict()
 
     async def process_text_file(self, file_path: str, benchmark: bool = False) -> dict[str, Any]:
+<<<<<<< HEAD
         with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -94,6 +114,23 @@ class ExtractionPipeline:
         except (json.JSONDecodeError, TypeError):
             pass
 
+=======
+        if file_path.lower().endswith(".json"):
+            try:
+                with open(file_path, encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict) and "transcription" in data:
+                    content = data["transcription"]
+                else:
+                    # Fallback if key missing: stringify the whole thing (current behavior)
+                    content = json.dumps(data)
+            except (OSError, json.JSONDecodeError):
+                with open(file_path, encoding="utf-8") as f:
+                    content = f.read()
+        else:
+            with open(file_path, encoding="utf-8") as f:
+                content = f.read()
+>>>>>>> 4f58726 (fix(pipeline): improve json parsing and increase LLM context window)
         return await self.extract_from_text(content, benchmark=benchmark)
 
     def _detect_content_type(self, text: str) -> str:
@@ -260,7 +297,7 @@ The text below was extracted via OCR from scanned book pages and may contain:
 Extract the following fields and return ONLY a valid JSON object:
 - "title": The book's title (look for prominent text, large headings, or text on the title page)
 - "author": The author's full name (look near "By", "©", "Written by", or Telugu/Hindi equivalents)
-- "publisher": The publisher's name (look near "Published by", "ప్రచురణ", "प्रकाशक", or publishing house names)
+- "publisher": The publisher's name (look near "Published by", "ప్రచురణ", "प्रकाशక", or publishing house names)
 - "published_date": The earliest publication date (look for years like 1996, 2004 near
   "First Edition", "ముద్రణ", "संस्करण")
 
@@ -272,7 +309,7 @@ Rules:
 - Prefer the original/first edition date over reprint dates.
 
 OCR Text:
-{text[:3000]}
+{text[:15000]}
 
 JSON:
 """
