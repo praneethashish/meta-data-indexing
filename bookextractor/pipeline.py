@@ -4,12 +4,13 @@ import re
 from pathlib import Path
 from typing import Any
 
-from vllm import LLM, SamplingParams
+from vllm import SamplingParams
 
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
 from .models import BenchmarkResult, BookMetadata, ConfidenceScores, ExtractionResult, ImageMetadata
 from .validation import extract_isbn_candidates
+from .vlm_client import VLMClient
 from .vparse_client import parse_pdf_via_vparse
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -18,18 +19,7 @@ DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "
 
 class ExtractionPipeline:
     def __init__(self, model_id: str | None = None):
-        model = model_id or os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct")
-        tensor_parallel_size = int(os.getenv("VLLM_TENSOR_PARALLEL_SIZE", "1"))
-        gpu_memory_utilization = float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "0.85"))
-        dtype = os.getenv("VLLM_DTYPE", "bfloat16")
-
-        self.llm = LLM(
-            model=model,
-            tensor_parallel_size=tensor_parallel_size,
-            dtype=dtype,
-            max_model_len=8192,
-            gpu_memory_utilization=gpu_memory_utilization,
-        )
+        self.vlm_client = VLMClient.get_instance(model_id=model_id)
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         # Call vParse OCR API with the selected language
@@ -162,7 +152,7 @@ JSON:
 """
         try:
             sampling_params = SamplingParams(temperature=0.7, max_tokens=256, stop=["```"])
-            outputs = self.llm.generate([prompt], sampling_params)
+            outputs = self.vlm_client.generate([prompt], sampling_params)
             text_out = outputs[0].outputs[0].text.strip()
             start = text_out.find("{")
             end = text_out.rfind("}") + 1

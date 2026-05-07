@@ -140,5 +140,28 @@ def api_command(
     _run_api(host=host, port=port)
 
 
+@cli_app.command("hardware-info")
+def hardware_info_command() -> None:
+    """Display detected hardware and suggested vLLM configuration."""
+    from .hardware import get_vllm_config
+
+    config = get_vllm_config()
+    hw = config["detected_hardware"]
+
+    print("\n--- Hardware Detection ---")
+    print(f"Device:   {hw['device'].upper()}")
+    print(f"Name:     {hw['name']}")
+    print(f"Count:    {hw['count']}")
+    print(f"Memory:   {hw['memory_gb']:.2f} GB")
+    print(f"Precisions Supported: {', '.join(hw['precision_supported'])}")
+
+    print("\n--- Optimized vLLM Configuration ---")
+    print(f"Dtype:                   {config['dtype']}")
+    print(f"GPU Memory Utilization:  {config['gpu_memory_utilization']}")
+    print(f"Tensor Parallel Size:    {config['tensor_parallel_size']}")
+    print(f"Target Device Override:  {os.getenv('VLLM_DEVICE', 'Not set (auto)')}")
+    print("--------------------------\n")
+
+
 if __name__ == "__main__":
     cli_app()
