@@ -46,6 +46,7 @@ class VLMClient:
 
         VLMClient._llm = LLM(
             model=self.model_id,
+            device=config["device"],
             tensor_parallel_size=config["tensor_parallel_size"],
             dtype=config["dtype"],
             max_model_len=8192,

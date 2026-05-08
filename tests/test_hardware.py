@@ -39,16 +39,16 @@ def test_cpu_fallback_detection(mock_pynvml, mock_torch):
 
 
 def test_nvidia_gpu_detection(mock_pynvml, mock_torch):
-    """Test detection of NVIDIA GPU via pynvml."""
-    mock_pynvml.nvmlDeviceGetCount.return_value = 1
-    mock_pynvml.nvmlDeviceGetHandleByIndex.return_value = "handle"
-    mock_memory = MagicMock()
-    mock_memory.total = 16 * (1024**3)
-    mock_pynvml.nvmlDeviceGetMemoryInfo.return_value = mock_memory
-    mock_pynvml.nvmlDeviceGetName.return_value = "Tesla T4"
-
+    """Test detection of NVIDIA GPU."""
+    _ = mock_pynvml  # Silence unused argument warning
+    # Since torch.cuda.is_available() is checked first now
     mock_torch.cuda.is_available.return_value = True
-    mock_torch.cuda.get_device_capability.return_value = (7, 5)  # T4 is 7.5
+    mock_torch.cuda.device_count.return_value = 1
+    mock_props = MagicMock()
+    mock_props.total_memory = 16 * (1024**3)
+    mock_torch.cuda.get_device_properties.return_value = mock_props
+    mock_torch.cuda.get_device_name.return_value = "Tesla T4"
+    mock_torch.cuda.get_device_capability.return_value = (7, 5)
 
     hw = detect_hardware()
 
@@ -61,13 +61,13 @@ def test_nvidia_gpu_detection(mock_pynvml, mock_torch):
 
 def test_high_memory_gpu_config(mock_pynvml, mock_torch):
     """Test config generation for high-memory GPU (A100 style)."""
-    mock_pynvml.nvmlDeviceGetCount.return_value = 1
-    mock_memory = MagicMock()
-    mock_memory.total = 80 * (1024**3)
-    mock_pynvml.nvmlDeviceGetMemoryInfo.return_value = mock_memory
-    mock_pynvml.nvmlDeviceGetName.return_value = "NVIDIA A100-SXM4-80GB"
-
+    _ = mock_pynvml  # Silence unused argument warning
     mock_torch.cuda.is_available.return_value = True
+    mock_torch.cuda.device_count.return_value = 1
+    mock_props = MagicMock()
+    mock_props.total_memory = 80 * (1024**3)
+    mock_torch.cuda.get_device_properties.return_value = mock_props
+    mock_torch.cuda.get_device_name.return_value = "NVIDIA A100-SXM4-80GB"
     mock_torch.cuda.get_device_capability.return_value = (8, 0)
 
     config = get_vllm_config()

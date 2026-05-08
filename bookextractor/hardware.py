@@ -113,13 +113,14 @@ def detect_hardware() -> dict[str, Any]:
     Detects available hardware accelerators and system memory.
     Returns a dictionary with hardware details.
     """
-    # 1. Check for TPU
+    # 1. Check for TPU (Priority in environments like Colab)
     tpu = _check_tpu()
     if tpu:
         return tpu
 
     # 2. Check for NVIDIA GPU
-    gpu = _check_nvidia_nvml() or _check_nvidia_torch()
+    # In Colab, torch.cuda.is_available() is often more reliable than NVML library paths
+    gpu = _check_nvidia_torch() or _check_nvidia_nvml()
     if gpu:
         return gpu
 
