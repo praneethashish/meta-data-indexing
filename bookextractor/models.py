@@ -9,6 +9,15 @@ class ConfidenceScores(BaseModel):
     published_date: float = Field(0.0, ge=0.0, le=1.0)
 
 
+class MagazineConfidenceScores(BaseModel):
+    magazine_name: float = Field(0.0, ge=0.0, le=1.0)
+    editor: float = Field(0.0, ge=0.0, le=1.0)
+    publisher: float = Field(0.0, ge=0.0, le=1.0)
+    issue_date: float = Field(0.0, ge=0.0, le=1.0)
+    issue_number: float = Field(0.0, ge=0.0, le=1.0)
+    price: float = Field(0.0, ge=0.0, le=1.0)
+
+
 class BookMetadata(BaseModel):
     title: str | None = None
     author: str | None = None
@@ -16,6 +25,17 @@ class BookMetadata(BaseModel):
     isbn: str | None = None
     published_date: str | None = None
     confidence: ConfidenceScores
+
+
+class MagazineMetadata(BaseModel):
+    magazine_name: str | None = None
+    editor: str | None = None
+    publisher: str | None = None
+    issue_date: str | None = None
+    issue_number: str | None = None
+    price: str | None = None
+    language: str | None = None
+    confidence: MagazineConfidenceScores | None = None
 
 
 class ImageMetadata(BaseModel):
@@ -44,6 +64,7 @@ class ImageVLMMetadata(BaseModel):
 
 class ExtractionResult(BaseModel):
     book_metadata: BookMetadata | None = None
+    magazine_metadata: MagazineMetadata | None = None
     image_metadata: ImageMetadata | None = None
     image_vlm_metadata: ImageVLMMetadata | None = None
 

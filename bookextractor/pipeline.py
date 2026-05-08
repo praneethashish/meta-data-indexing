@@ -8,7 +8,15 @@ from vllm import SamplingParams
 
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
-from .models import BenchmarkResult, BookMetadata, ConfidenceScores, ExtractionResult, ImageMetadata
+from .models import (
+    BenchmarkResult,
+    BookMetadata,
+    ConfidenceScores,
+    ExtractionResult,
+    ImageMetadata,
+    MagazineConfidenceScores,
+    MagazineMetadata,
+)
 from .validation import extract_isbn_candidates
 from .vlm_client import VLMClient
 from .vparse_client import parse_pdf_via_vparse
@@ -71,9 +79,54 @@ class ExtractionPipeline:
     async def process_text_file(self, file_path: str, benchmark: bool = False) -> dict[str, Any]:
         with open(file_path, encoding="utf-8") as f:
             content = f.read()
+
+        # Check if it's a structured JSON with transcription (already OCR'd content)
+        try:
+            data = json.loads(content)
+            if isinstance(data, dict) and "transcription" in data:
+                # Use the transcription field directly
+                text = data.get("transcription", "")
+                lang = data.get("language", "te")
+                return await self.extract_from_text(text, benchmark=benchmark, lang=lang)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
         return await self.extract_from_text(content, benchmark=benchmark)
 
-    async def extract_from_text(self, text: str, benchmark: bool = False) -> dict[str, Any]:
+    def _detect_content_type(self, text: str) -> str:
+        """Detect if content is a magazine/periodical or book."""
+        text_lower = text.lower()
+
+        # Magazine indicators (English and Telugu)
+        magazine_patterns = [
+            "మాసపత్రిక",  # monthly magazine (Telugu)
+            "సంచిక",  # issue (Telugu)
+            "చందా",  # subscription (Telugu)
+            "ఏజంట్లు",  # agents (Telugu)
+            "magazine",
+            "issue",
+            "vol.",
+            "no.",
+            "subscription",
+            "monthly",
+            "periodical",
+        ]
+
+        for pattern in magazine_patterns:
+            if pattern in text_lower:
+                return "magazine"
+
+        return "book"
+
+    async def extract_from_text(self, text: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
+        content_type = self._detect_content_type(text)
+
+        if content_type == "magazine":
+            return await self._extract_magazine_metadata(text, benchmark=benchmark, lang=lang)
+        else:
+            return await self._extract_book_metadata(text, benchmark=benchmark)
+
+    async def _extract_book_metadata(self, text: str, benchmark: bool = False) -> dict[str, Any]:
         # ISBN Extraction
         isbns = extract_isbn_candidates(text)
 
@@ -119,6 +172,94 @@ class ExtractionPipeline:
         if benchmark:
             return BenchmarkResult(result=result, debug=debug_info).dict()
         return result.dict()
+
+    async def _extract_magazine_metadata(self, text: str, benchmark: bool = False, lang: str = "te") -> dict[str, Any]:
+        # LLM Semantic Extraction for magazines
+        llm_result = self.extract_magazine_semantic_fields(text, lang=lang)
+
+        # Build confidence scores
+        confidence = MagazineConfidenceScores(
+            magazine_name=0.8 if llm_result.get("magazine_name") else 0.0,
+            editor=0.7 if llm_result.get("editor") else 0.0,
+            publisher=0.7 if llm_result.get("publisher") else 0.0,
+            issue_date=0.8 if llm_result.get("issue_date") else 0.0,
+            issue_number=0.6 if llm_result.get("issue_number") else 0.0,
+            price=0.6 if llm_result.get("price") else 0.0,
+        )
+
+        magazine_meta = MagazineMetadata(
+            magazine_name=llm_result.get("magazine_name"),
+            editor=llm_result.get("editor"),
+            publisher=llm_result.get("publisher"),
+            issue_date=llm_result.get("issue_date"),
+            issue_number=llm_result.get("issue_number"),
+            price=llm_result.get("price"),
+            language=lang,
+            confidence=confidence,
+        )
+
+        result = ExtractionResult(magazine_metadata=magazine_meta)
+        debug_info = {"llm_raw_output": llm_result, "text_snippet": text[:500]}
+
+        if benchmark:
+            return BenchmarkResult(result=result, debug=debug_info).dict()
+        return result.dict()
+
+    def extract_magazine_semantic_fields(self, text: str, lang: str = "te") -> dict[str, Any]:
+        if lang == "te":
+            prompt = f"""మీరు ఒక నిపుణుడైన మ్యాగజైన్ మెటాడేటా ఎక్స్‌ట్రాక్టర్. కింద ఇచ్చిన OCR టెక్స్ట్ నుండి మ్యాగజైన్ వివరాలను సేకరించండి.
+
+క్రింది ఫీల్డ్‌లను మాత్రమే JSON ఫార్మాట్‌లో తిరిగి ఇవ్వండి:
+- "magazine_name": మ్యాగజైన్ పేరు (ఉదా: చందమామ, ఆంధ్రజ్యోతి, యువ)
+- "editor": సంపాదకుడి పేరు ("సంపాదకుడు", "నంచాలకుడు" దగ్గర చూడండి)
+- "publisher": ప్రచురణకర్త పేరు ("ఆఫీసు", "ప్రచురణ" దగ్గర చూడండి)
+- "issue_date": సంచిక తేదీ (నెల, సంవత్సరం - ఉదా: August 1948, ఆగస్టు 1948)
+- "issue_number": సంచిక నంబర్ ("సంచిక", "నంపుటి" దగ్గర చూడండి)
+- "price": ధర ("ఖరీదు", "రేటు" దగ్గర చూడండి)
+
+నియమాలు:
+- కేవలం JSON మాత్రమే ఇవ్వండి - వి వివరణ అవసరం లేదు
+- తెలియని ఫీల్డ్‌లకు null ఇవ్వండి
+- ఊహించిన విలువలు ఇవ్వకండి
+
+OCR టెక్స్ట్:
+{text[:3000]}
+
+JSON:
+"""
+        else:
+            prompt = f"""You are an expert magazine metadata extractor.
+Extract magazine details from the OCR text below.
+
+Return ONLY a valid JSON object with these fields:
+- "magazine_name": Magazine name (e.g., Chandamama, Andhra Jyothy)
+- "editor": Editor's name (look near "Editor", "సంపాదకుడు")
+- "publisher": Publisher name (look near "Office", "ప్రచురణ")
+- "issue_date": Issue date (month, year - e.g., August 1948)
+- "issue_number": Issue number (look near "Issue", "సంచిక", "No.")
+- "price": Price (look near "Price", "ఖరీదు", "Rs.")
+
+Rules:
+- Return STRICT JSON only — no explanation
+- Set null for fields you cannot determine
+- Do NOT fabricate values
+
+OCR Text:
+{text[:3000]}
+
+JSON:
+"""
+        try:
+            sampling_params = SamplingParams(temperature=0.3, max_tokens=256, stop=["```"])
+            outputs = self.vlm_client.generate([prompt], sampling_params)
+            text_out = outputs[0].outputs[0].text.strip()
+            start = text_out.find("{")
+            end = text_out.rfind("}") + 1
+            if start != -1 and end != -1:
+                return json.loads(text_out[start:end])
+        except Exception:  # nosec
+            pass
+        return {}
 
     def extract_semantic_fields(self, text: str) -> dict[str, Any]:
         prompt = f"""You are an expert book metadata extractor. Your task is to identify and extract
