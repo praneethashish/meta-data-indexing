@@ -226,7 +226,7 @@ async def test_extract_from_text_benchmark_mode(mock_vlm_client, sample_book_tex
 @patch("bookextractor.vlm_client.VLMClient.get_instance")
 def test_pipeline_init(mock_vlm_instance):
     _ = ExtractionPipeline(model_id="custom-model")
-    mock_vlm_instance.assert_called_with(model_id="custom-model")
+    mock_vlm_instance.assert_called_with(model_id="custom-model", max_model_len=4096)
 
 
 @pytest.mark.asyncio

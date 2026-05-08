@@ -18,19 +18,20 @@ class VLMClient:
     _instance: "VLMClient | None" = None
     _llm: LLM | None = None
 
-    def __init__(self, model_id: str | None = None):
+    def __init__(self, model_id: str | None = None, max_model_len: int = 4096):
         """
         Initialize the VLMClient. Note: Use get_instance() for shared LLM resource.
         """
         if VLMClient._llm is None:
             self.model_id = model_id or os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct")
+            self.max_model_len = max_model_len
             self._initialize_llm()
 
     @classmethod
-    def get_instance(cls, model_id: str | None = None) -> "VLMClient":
+    def get_instance(cls, model_id: str | None = None, max_model_len: int = 4096) -> "VLMClient":
         """Get or create a singleton instance of VLMClient."""
         if cls._instance is None:
-            cls._instance = cls(model_id=model_id)
+            cls._instance = cls(model_id=model_id, max_model_len=max_model_len)
         return cls._instance
 
     def _initialize_llm(self) -> None:
@@ -51,7 +52,7 @@ class VLMClient:
             model=self.model_id,
             tensor_parallel_size=config["tensor_parallel_size"],
             dtype=config["dtype"],
-            max_model_len=8192,
+            max_model_len=self.max_model_len,
             gpu_memory_utilization=config["gpu_memory_utilization"],
             trust_remote_code=True,
         )

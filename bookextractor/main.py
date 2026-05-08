@@ -24,10 +24,10 @@ pipeline = None
 ALLOWED_EXTENSIONS = (".pdf", ".md", ".json", ".jpg", ".jpeg", ".png", ".webp", ".tiff")
 
 
-def get_pipeline():
+def get_pipeline(max_model_len: int = 4096):
     global pipeline
     if pipeline is None:
-        pipeline = ExtractionPipeline()
+        pipeline = ExtractionPipeline(max_model_len=max_model_len)
     return pipeline
 
 
@@ -42,9 +42,13 @@ def _run_api(host: str = "0.0.0.0", port: int = 8000) -> None:  # nosec B104
 
 
 async def _extract_file(
-    input_file: str, output_json: str, benchmark: bool = False, lang: OCRLanguage = OCRLanguage.ENGLISH
+    input_file: str,
+    output_json: str,
+    benchmark: bool = False,
+    lang: OCRLanguage = OCRLanguage.ENGLISH,
+    max_model_len: int = 4096,
 ) -> None:
-    p = get_pipeline()
+    p = get_pipeline(max_model_len=max_model_len)
     filename = input_file.lower()
 
     if filename.endswith(".pdf"):
@@ -128,8 +132,13 @@ def extract_command(
         "--lang",
         help="OCR language pack for PDF extraction: en, te, devanagari",
     ),
+    max_model_len: int = typer.Option(  # noqa: B008
+        4096,
+        "--max-model-len",
+        help="Maximum context length (reduce to save VRAM)",
+    ),
 ) -> None:
-    asyncio.run(_extract_file(input_file, output_json, benchmark=benchmark, lang=lang))
+    asyncio.run(_extract_file(input_file, output_json, benchmark=benchmark, lang=lang, max_model_len=max_model_len))
 
 
 @cli_app.command("api")

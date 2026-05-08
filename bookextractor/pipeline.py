@@ -18,8 +18,8 @@ DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "
 
 
 class ExtractionPipeline:
-    def __init__(self, model_id: str | None = None):
-        self.vlm_client = VLMClient.get_instance(model_id=model_id)
+    def __init__(self, model_id: str | None = None, max_model_len: int = 4096):
+        self.vlm_client = VLMClient.get_instance(model_id=model_id, max_model_len=max_model_len)
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         # Call vParse OCR API with the selected language
