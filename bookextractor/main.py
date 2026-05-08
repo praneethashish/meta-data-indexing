@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import uuid
 from enum import Enum
 
 import typer
@@ -8,6 +9,7 @@ import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from .pipeline import ExtractionPipeline
+from .tasks import celery_app, extract_image_task, extract_pdf_task, extract_text_task
 
 
 class OCRLanguage(str, Enum):
@@ -22,6 +24,8 @@ app = FastAPI()
 cli_app = typer.Typer()
 pipeline = None
 ALLOWED_EXTENSIONS = (".pdf", ".md", ".json", ".jpg", ".jpeg", ".png", ".webp", ".tiff")
+UPLOAD_DIR = os.getenv("BOOKEXTRACTOR_UPLOAD_DIR", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 def get_pipeline(max_model_len: int = 4096):
@@ -34,6 +38,62 @@ def get_pipeline(max_model_len: int = 4096):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/extract/async")
+async def extract_async(
+    file: UploadFile = File(...),  # noqa: B008
+    lang: OCRLanguage = Form(  # noqa: B008
+        OCRLanguage.ENGLISH,
+        description="OCR language pack: 'en' (English), 'te' (Telugu+English), 'devanagari' (Hindi+English)",
+    ),
+):
+    """Submit an extraction job to the background queue."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided")
+    filename = file.filename.lower()
+    if not filename.endswith(ALLOWED_EXTENSIONS):
+        raise HTTPException(status_code=400, detail=f"Unsupported file type. Allowed: {ALLOWED_EXTENSIONS}")
+
+    # Save to persistent upload dir for worker access
+    file_id = str(uuid.uuid4())
+    save_path = os.path.join(UPLOAD_DIR, f"{file_id}_{file.filename}")
+
+    with open(save_path, "wb") as buffer:
+        buffer.write(await file.read())
+
+    try:
+        if filename.endswith(".pdf"):
+            task = extract_pdf_task.delay(save_path, lang=lang.value)
+        elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff")):
+            task = extract_image_task.delay(save_path)
+        else:
+            task = extract_text_task.delay(save_path)
+
+        return {"job_id": task.id, "status": "submitted"}
+    except Exception as e:
+        if os.path.exists(save_path):
+            os.remove(save_path)
+        raise HTTPException(status_code=500, detail=f"Failed to submit task: {str(e)}") from e
+
+
+@app.get("/jobs/{job_id}")
+async def get_job_status(job_id: str):
+    """Get the status or result of a background extraction job."""
+    task = celery_app.AsyncResult(job_id)
+    response = {
+        "job_id": job_id,
+        "status": task.state,
+        "ready": task.ready(),
+    }
+
+    if task.ready():
+        if task.successful():
+            response["result"] = task.result
+        else:
+            response["error"] = str(task.result)
+
+    return response
 
 
 def _run_api(host: str = "0.0.0.0", port: int = 8000) -> None:  # nosec B104
@@ -149,6 +209,7 @@ def api_command(
     _run_api(host=host, port=port)
 
 
+<<<<<<< HEAD
 @cli_app.command("hardware-info")
 def hardware_info_command() -> None:
     """Display detected hardware and suggested vLLM configuration."""
@@ -292,6 +353,30 @@ def model_cache_command() -> None:
     print("-" * 62)
     print(f"{'Total':<50} {total / 1024**3:.2f} GB")
     print()
+=======
+@cli_app.command("worker")
+def worker_command(
+    queue: str = typer.Option("default_queue", "--queue", "-q", help="Celery queue to listen to"),
+    concurrency: int = typer.Option(4, "--concurrency", "-c", help="Number of concurrent worker processes"),
+):
+    """Start a Celery worker for background processing."""
+    print(f"Starting Celery worker for queue: {queue} (concurrency: {concurrency})")
+    # Execute celery worker command
+    import subprocess  # nosec
+
+    cmd = [
+        "celery",
+        "-A",
+        "bookextractor.tasks",
+        "worker",
+        "-Q",
+        queue,
+        "--concurrency",
+        str(concurrency),
+        "--loglevel=info",
+    ]
+    subprocess.run(cmd)  # nosec
+>>>>>>> 066f554 (feat(async): implement celery and redis background task queue)
 
 
 if __name__ == "__main__":

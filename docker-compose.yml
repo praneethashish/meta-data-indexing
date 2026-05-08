@@ -11,11 +11,69 @@ services:
       - VLLM_MODEL=/models/vllm/google/gemma-4-E4B-it
       - VLLM_TENSOR_PARALLEL_SIZE=1
       - HF_HOME=/models/huggingface
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - BOOKEXTRACTOR_UPLOAD_DIR=/app/uploads
     volumes:
       - models:/models
+      - ./uploads:/app/uploads
     depends_on:
       model-downloader:
         condition: service_completed_successfully
+      redis:
+        condition: service_started
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  worker-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.bookextractor
+    image: bookextractor:latest
+    command: bookextractor worker --queue default_queue --concurrency 8
+    environment:
+      - VPARSE_API_URL=http://vparse:8000/file_parse
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - BOOKEXTRACTOR_UPLOAD_DIR=/app/uploads
+    volumes:
+      - models:/models
+      - ./uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_started
+
+  worker-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.bookextractor
+    image: bookextractor:latest
+    command: bookextractor worker --queue vlm_queue --concurrency 2
+    environment:
+      - VLLM_MODEL=/models/vllm/google/gemma-4-E4B-it
+      - VLLM_TENSOR_PARALLEL_SIZE=1
+      - HF_HOME=/models/huggingface
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - BOOKEXTRACTOR_UPLOAD_DIR=/app/uploads
+    volumes:
+      - models:/models
+      - ./uploads:/app/uploads
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
     deploy:
       resources:
         reservations:
