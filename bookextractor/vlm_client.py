@@ -44,9 +44,11 @@ class VLMClient:
             f"memory_util={config['gpu_memory_utilization']}"
         )
 
+        # Set environment variable to force device type (fixes vLLM auto-detection issues)
+        os.environ["VLLM_TARGET_DEVICE"] = config["device"]
+
         VLMClient._llm = LLM(
             model=self.model_id,
-            device=config["device"],
             tensor_parallel_size=config["tensor_parallel_size"],
             dtype=config["dtype"],
             max_model_len=8192,
