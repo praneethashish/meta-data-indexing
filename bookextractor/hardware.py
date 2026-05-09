@@ -7,12 +7,12 @@ import psutil
 try:
     import pynvml
 except ImportError:
-    pynvml = None
+    pynvml = None  # type: ignore[assignment]
 
 try:
     import torch
 except ImportError:
-    torch = None
+    torch = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
