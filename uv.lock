@@ -403,6 +403,7 @@ dependencies = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
+    { name = "pytest-httpx" },
     { name = "pytest-mock" },
     { name = "python-multipart" },
     { name = "questionary" },
@@ -412,11 +413,6 @@ dependencies = [
     { name = "uvicorn" },
     { name = "vllm" },
     { name = "vulture" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest-httpx" },
 ]
 
 [package.metadata]
@@ -438,6 +434,7 @@ requires-dist = [
     { name = "pytest", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", specifier = ">=0.21.0" },
     { name = "pytest-cov", specifier = ">=4.0.0" },
+    { name = "pytest-httpx", specifier = ">=0.36.2" },
     { name = "pytest-mock", specifier = ">=1.15.0" },
     { name = "python-multipart", specifier = ">=0.0.6" },
     { name = "questionary", specifier = ">=2.0.0" },
@@ -450,7 +447,7 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest-httpx", specifier = ">=0.36.2" }]
+dev = []
 
 [[package]]
 name = "cachetools"

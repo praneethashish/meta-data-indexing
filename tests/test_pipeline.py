@@ -1,3 +1,4 @@
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -305,3 +306,84 @@ async def test_process_pdf_benchmark_mode(mock_vlm_client, sample_vparse_respons
                     result = await pipeline.process_pdf(str(pdf_path), benchmark=True)
                     assert "result" in result
                     assert "debug" in result
+
+
+@pytest.mark.asyncio
+async def test_extract_from_text_magazine(mock_vlm_client):
+    magazine_text = "చందమామ మాసపత్రిక ఆగస్టు 1948 సంచిక 2 ఖరీదు 0-6-0"
+
+    mock_output = MagicMock()
+    mock_output.outputs = [
+        MagicMock(text='{"magazine_name": "చందమామ", "issue_date": "August 1948", "issue_number": "2", "price": "0-6-0"}')
+    ]
+    mock_vlm_client.generate.return_value = [mock_output]
+
+    with patch.object(ExtractionPipeline, "__init__", lambda *_: None):
+        pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
+        pipeline.vlm_client = mock_vlm_client
+
+        result = await pipeline.extract_from_text(magazine_text)
+
+        assert "magazine_metadata" in result
+        assert result["magazine_metadata"]["magazine_name"] == "చందమామ"
+        assert result["magazine_metadata"]["issue_date"] == "August 1948"
+        assert result["magazine_metadata"]["issue_number"] == "2"
+        assert result["magazine_metadata"]["price"] == "0-6-0"
+        assert result["magazine_metadata"]["language"] == "en"
+
+
+@pytest.mark.asyncio
+async def test_extract_from_text_magazine_benchmark(mock_vlm_client):
+    magazine_text = "ఆంధ్రజ్యోతి మాసపత్రిక"
+
+    mock_output = MagicMock()
+    mock_output.outputs = [MagicMock(text='{"magazine_name": "ఆంధ్రజ్యోతి"}')]
+    mock_vlm_client.generate.return_value = [mock_output]
+
+    with patch.object(ExtractionPipeline, "__init__", lambda *_: None):
+        pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
+        pipeline.vlm_client = mock_vlm_client
+
+        result = await pipeline.extract_from_text(magazine_text, benchmark=True)
+
+        assert "result" in result
+        assert "debug" in result
+        assert result["result"]["magazine_metadata"]["magazine_name"] == "ఆంధ్రజ్యోతి"
+
+
+@pytest.mark.asyncio
+async def test_extract_from_text_magazine_json_input(mock_vlm_client, tmp_path):
+    json_input = tmp_path / "input.json"
+    json_input.write_text(
+        json.dumps(
+            {
+                "transcription": "చందమామ మాసపత్రిక ఆగస్టు 1948",
+                "language": "te",
+            }
+        )
+    )
+
+    mock_output = MagicMock()
+    mock_output.outputs = [MagicMock(text='{"magazine_name": "చందమామ", "issue_date": "August 1948"}')]
+    mock_vlm_client.generate.return_value = [mock_output]
+
+    with patch.object(ExtractionPipeline, "__init__", lambda *_: None):
+        pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
+        pipeline.vlm_client = mock_vlm_client
+
+        with patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]):
+            with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}):
+                result = await pipeline.process_text_file(str(json_input))
+
+                assert "magazine_metadata" in result
+                assert result["magazine_metadata"]["magazine_name"] == "చందమామ"
+
+
+def test_detect_content_type():
+    with patch.object(ExtractionPipeline, "__init__", lambda *_: None):
+        pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
+
+        assert pipeline._detect_content_type("మాసపత్రిక విషయాలు") == "magazine"
+        assert pipeline._detect_content_type("సంచిక 2 నంపుటి") == "magazine"
+        assert pipeline._detect_content_type("subscription monthly") == "magazine"
+        assert pipeline._detect_content_type("This is a normal book about Python") == "book"

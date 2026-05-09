@@ -61,3 +61,29 @@ async def test_vlm_client_describe_image():
 
     assert "description" in result
     assert result["text_content"] is None
+
+
+def test_vlm_client_generate_without_init():
+    """Test that generate raises RuntimeError without LLM initialized."""
+    VLMClient._instance = None
+    VLMClient._llm = None
+
+    client = VLMClient.__new__(VLMClient)
+    client._llm = None
+
+    with pytest.raises(RuntimeError, match="vLLM engine not initialized"):
+        client.generate(["prompt"])
+
+
+def test_vlm_client_auto_detect_cached():
+    """Test auto-detection of cached models."""
+    VLMClient._instance = None
+    VLMClient._llm = None
+
+    with patch("bookextractor.models_registry.get_cached_models", return_value=[]):
+        result = VLMClient._detect_cached_model()
+        assert result == "Qwen/Qwen2.5-VL-7B-Instruct"
+
+    with patch("bookextractor.models_registry.get_cached_models", return_value=["myorg/mymodel"]):
+        result = VLMClient._detect_cached_model()
+        assert result == "myorg/mymodel"
