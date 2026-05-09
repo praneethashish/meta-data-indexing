@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 from pathlib import Path
@@ -20,6 +21,8 @@ from .models import (
 from .validation import extract_isbn_candidates
 from .vlm_client import VLMClient
 from .vparse_client import parse_pdf_via_vparse
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "models"))
@@ -206,43 +209,20 @@ class ExtractionPipeline:
         return result.dict()
 
     def extract_magazine_semantic_fields(self, text: str, lang: str = "te") -> dict[str, Any]:
-        if lang == "te":
-            prompt = f"""మీరు ఒక నిపుణుడైన మ్యాగజైన్ మెటాడేటా ఎక్స్‌ట్రాక్టర్. కింద ఇచ్చిన OCR టెక్స్ట్ నుండి మ్యాగజైన్ వివరాలను సేకరించండి.
+        _ = lang
+        prompt = f"""Extract magazine metadata from the OCR text below.
+The text is in Telugu (తెలుగు) and English.
 
-క్రింది ఫీల్డ్‌లను మాత్రమే JSON ఫార్మాట్‌లో తిరిగి ఇవ్వండి:
-- "magazine_name": మ్యాగజైన్ పేరు (ఉదా: చందమామ, ఆంధ్రజ్యోతి, యువ)
-- "editor": సంపాదకుడి పేరు ("సంపాదకుడు", "నంచాలకుడు" దగ్గర చూడండి)
-- "publisher": ప్రచురణకర్త పేరు ("ఆఫీసు", "ప్రచురణ" దగ్గర చూడండి)
-- "issue_date": సంచిక తేదీ (నెల, సంవత్సరం - ఉదా: August 1948, ఆగస్టు 1948)
-- "issue_number": సంచిక నంబర్ ("సంచిక", "నంపుటి" దగ్గర చూడండి)
-- "price": ధర ("ఖరీదు", "రేటు" దగ్గర చూడండి)
+Return ONLY a valid JSON object with these fields (use null for unknown fields):
+- "magazine_name": Name of the magazine (e.g., "చందమామ", "Chandamama")
+- "editor": Editor name (look for "సంపాదకుడు", "నంచాలకుడు", "Editor")
+- "publisher": Publisher name (look for "ప్రచురణ", "ఆఫీసు", "Office")
+- "issue_date": Issue month and year (e.g., "August 1948", "ఆగస్టు 1948")
+- "issue_number": Issue/volume number (look for "సంచిక", "నంపుటి", "Vol.", "No.")
+- "price": Price (look for "ఖరీదు", "రేటు", "Price", "Rs.")
 
-నియమాలు:
-- కేవలం JSON మాత్రమే ఇవ్వండి - వి వివరణ అవసరం లేదు
-- తెలియని ఫీల్డ్‌లకు null ఇవ్వండి
-- ఊహించిన విలువలు ఇవ్వకండి
-
-OCR టెక్స్ట్:
-{text[:3000]}
-
-JSON:
-"""
-        else:
-            prompt = f"""You are an expert magazine metadata extractor.
-Extract magazine details from the OCR text below.
-
-Return ONLY a valid JSON object with these fields:
-- "magazine_name": Magazine name (e.g., Chandamama, Andhra Jyothy)
-- "editor": Editor's name (look near "Editor", "సంపాదకుడు")
-- "publisher": Publisher name (look near "Office", "ప్రచురణ")
-- "issue_date": Issue date (month, year - e.g., August 1948)
-- "issue_number": Issue number (look near "Issue", "సంచిక", "No.")
-- "price": Price (look near "Price", "ఖరీదు", "Rs.")
-
-Rules:
-- Return STRICT JSON only — no explanation
-- Set null for fields you cannot determine
-- Do NOT fabricate values
+Example:
+{{"magazine_name": "చందమామ", "editor": "చక్రపాతి", "issue_date": "August 1948", "issue_number": "2"}}
 
 OCR Text:
 {text[:3000]}
@@ -250,15 +230,20 @@ OCR Text:
 JSON:
 """
         try:
-            sampling_params = SamplingParams(temperature=0.3, max_tokens=256, stop=["```"])
+            sampling_params = SamplingParams(temperature=0.1, max_tokens=512, stop=["```"])
             outputs = self.vlm_client.generate([prompt], sampling_params)
             text_out = outputs[0].outputs[0].text.strip()
             start = text_out.find("{")
             end = text_out.rfind("}") + 1
             if start != -1 and end != -1:
-                return json.loads(text_out[start:end])
-        except Exception:  # nosec
-            pass
+                raw = text_out[start:end]
+                logger.info(f"Raw LLM magazine output: {raw}")
+                result = json.loads(raw)
+                return result
+            else:
+                logger.warning(f"No JSON found in LLM output: {text_out}")
+        except Exception as e:
+            logger.warning(f"Failed to parse magazine JSON: {e}, raw: {text_out}")
         return {}
 
     def extract_semantic_fields(self, text: str) -> dict[str, Any]:

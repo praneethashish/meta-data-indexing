@@ -23,9 +23,31 @@ class VLMClient:
         Initialize the VLMClient. Note: Use get_instance() for shared LLM resource.
         """
         if VLMClient._llm is None:
-            self.model_id = model_id or os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct")
+            self.model_id = model_id or os.getenv("VLLM_MODEL") or self._detect_cached_model()
             self.max_model_len = max_model_len
             self._initialize_llm()
+
+    @staticmethod
+    def _detect_cached_model() -> str:
+        from .models_registry import AVAILABLE_MODELS, get_cached_models
+
+        cached = get_cached_models()
+        if not cached:
+            return "Qwen/Qwen2.5-VL-7B-Instruct"
+
+        registry_ids = {m["id"] for m in AVAILABLE_MODELS}
+        known_cached = [m for m in cached if m in registry_ids]
+
+        if len(known_cached) == 1:
+            logger.info(f"Auto-detected cached model: {known_cached[0]}")
+            return known_cached[0]
+
+        if known_cached:
+            logger.info(f"Multiple cached models. Using: {known_cached[0]}")
+            return known_cached[0]
+
+        logger.info(f"No known cached models. Using: {cached[0]}")
+        return cached[0]
 
     @classmethod
     def get_instance(cls, model_id: str | None = None, max_model_len: int = 4096) -> "VLMClient":

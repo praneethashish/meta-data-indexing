@@ -172,5 +172,127 @@ def hardware_info_command() -> None:
     print("--------------------------\n")
 
 
+model_app = typer.Typer(help="Manage Hugging Face models")
+cli_app.add_typer(model_app, name="model", help="Download, list, and remove models")
+
+
+@model_app.command("list")
+def model_list_command() -> None:
+    """List available models and their cache status."""
+    from .hardware import get_vllm_config
+    from .models_registry import AVAILABLE_MODELS, get_cached_model_size, is_model_cached
+
+    try:
+        config = get_vllm_config()
+        vram = config["detected_hardware"]["memory_gb"]
+    except Exception:
+        vram = 0
+
+    print(f"\n{'Model':<50} {'Type':<8} {'VRAM':<8} {'Cached':<8} {'Size':<10}")
+    print("-" * 84)
+    for m in AVAILABLE_MODELS:
+        cached = is_model_cached(m["id"])
+        size = get_cached_model_size(m["id"]) if cached else 0
+        size_str = f"{size / 1024**3:.1f} GB" if size else "-"
+        fits = "✅" if vram and m["min_vram_gb"] <= vram * 0.85 else ("⚠️" if vram else "?")
+        print(
+            f"{m['id']:<50} {m['type']:<8} {fits} {m['min_vram_gb']}GB{'':<3} "
+            f"{'✓' if cached else '✗':<8} {size_str:<10}"
+        )
+    print()
+
+
+@model_app.command("download")
+def model_download_command() -> None:
+    """Interactively download models from Hugging Face."""
+    from huggingface_hub import snapshot_download
+    from questionary import Style, checkbox
+
+    from .models_registry import AVAILABLE_MODELS, is_model_cached
+
+    choices = []
+    for m in AVAILABLE_MODELS:
+        cached = is_model_cached(m["id"])
+        label = f"{'✓ ' if cached else '  '}{m['id']} — {m['desc']}"
+        disabled = None
+        choices.append({"name": label, "value": m["id"], "disabled": disabled})
+
+    style = Style([("qmark", "fg:cyan bold"), ("question", "bold")])
+    selected = checkbox("Select models to download:", choices=choices, style=style).ask()
+
+    if not selected:
+        print("No models selected.")
+        return
+
+    for model_id in selected:
+        if is_model_cached(model_id):
+            print(f"  ✓ {model_id} already cached, skipping.")
+            continue
+        print(f"\n  Downloading {model_id}...")
+        try:
+            snapshot_download(model_id, resume_download=True)
+            print(f"  ✓ {model_id} downloaded successfully.")
+        except Exception as e:
+            print(f"  ✗ Failed to download {model_id}: {e}")
+
+    print("\nDone.")
+
+
+@model_app.command("remove")
+def model_remove_command(
+    query: str = typer.Argument(..., help="Model ID or name pattern to remove"),
+) -> None:
+    """Remove cached models by ID or fuzzy name."""
+    from .models_registry import find_model_by_query, get_cached_models, remove_model_from_cache
+
+    matches = find_model_by_query(query)
+    if not matches:
+        print(f"No models match '{query}'.")
+        print("Cached models:", ", ".join(get_cached_models()))
+        raise typer.Exit(code=1)
+
+    if len(matches) == 1:
+        model_id = matches[0]["id"]
+    else:
+        from questionary import select
+
+        chosen = select(
+            "Multiple matches. Choose one:",
+            choices=[m["id"] for m in matches],
+        ).ask()
+        if not chosen:
+            return
+        model_id = chosen
+
+    if remove_model_from_cache(model_id):
+        print(f"  ✓ Removed {model_id}")
+    else:
+        print(f"  Not cached: {model_id}")
+
+
+@model_app.command("cache")
+def model_cache_command() -> None:
+    """Show cache status and disk usage."""
+    from .models_registry import get_cached_model_size, get_cached_models
+
+    cached_ids = get_cached_models()
+    if not cached_ids:
+        print("\n  No models cached.\n")
+        return
+
+    total = 0
+    print(f"\n{'Model':<50} {'Size':<12}")
+    print("-" * 62)
+    for model_id in cached_ids:
+        size = get_cached_model_size(model_id)
+        total += size
+        size_str = f"{size / 1024**3:.2f} GB"
+        print(f"{model_id:<50} {size_str:<12}")
+
+    print("-" * 62)
+    print(f"{'Total':<50} {total / 1024**3:.2f} GB")
+    print()
+
+
 if __name__ == "__main__":
     cli_app()
