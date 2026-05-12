@@ -75,28 +75,35 @@ uv run bookextractor extract input.pdf output.json --lang te
 uv run bookextractor extract input.pdf output.json --lang devanagari
 ```
 
+Display detected hardware and optimized vLLM configuration:
+
+```bash
+uv run bookextractor hardware-info
+```
+
 Enable benchmark mode for debug info:
 
 ```bash
 uv run bookextractor extract input.pdf output.json --benchmark
 ```
 
-### Environment Variables
+### Automatic Hardware Optimization
 
-Configure the VLM inference via environment variables:
+`bookextractor` automatically detects your hardware (NVIDIA GPU, TPU, Apple Silicon, or CPU) and configures vLLM parameters (`dtype`, `tensor_parallel_size`, `gpu_memory_utilization`) for optimal performance and compatibility.
 
-| Variable                      | Description                          | Default                     |
-| ----------------------------- | ------------------------------------ | --------------------------- |
-| `VLLM_MODEL`                  | HuggingFace model ID                 | `Qwen/Qwen2.5-VL-7B-Instruct` |
-| `VLLM_GPU_MEMORY_UTILIZATION` | GPU memory fraction (0.0-1.0)        | `0.85`                      |
-| `VLLM_DTYPE`                  | Model dtype: `bfloat16` or `float16` | `bfloat16`                  |
-| `VLLM_TENSOR_PARALLEL_SIZE`   | Number of GPUs to use                | `1`                         |
+#### Environment Variable Overrides
 
-**Note:** For older GPUs (Tesla T4, compute capability < 8.0), set `VLLM_DTYPE=float16`:
+If needed, you can manually override the automatic detection:
 
-```bash
-VLLM_GPU_MEMORY_UTILIZATION=0.5 VLLM_DTYPE=float16 uv run bookextractor extract --lang te input.pdf output.json
-```
+| Variable                      | Description                                   | Default                     |
+| ----------------------------- | --------------------------------------------- | --------------------------- |
+| `VLLM_MODEL`                  | HuggingFace model ID                          | `Qwen/Qwen2.5-VL-7B-Instruct` |
+| `VLLM_DEVICE`                 | Target device: `cuda`, `tpu`, `mps`, or `cpu` | Auto-detected               |
+| `VLLM_DTYPE`                  | Model precision: `bfloat16`, `float16`, etc.  | Auto-optimized              |
+| `VLLM_GPU_MEMORY_UTILIZATION` | GPU memory fraction (0.0-1.0)                 | Auto-optimized              |
+| `VLLM_TENSOR_PARALLEL_SIZE`   | Number of GPUs to use (or `auto`)             | Auto-optimized              |
+
+**Note:** Automatic detection handles low-memory GPUs (like Tesla T4) by automatically switching to `float16` and lower memory utilization to prevent OOM errors.
 
 ### API (FastAPI)
 

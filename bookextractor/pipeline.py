@@ -1,35 +1,36 @@
 import json
+import logging
 import os
 import re
 from pathlib import Path
 from typing import Any
 
-from vllm import LLM, SamplingParams
+from vllm import SamplingParams
 
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
-from .models import BenchmarkResult, BookMetadata, ConfidenceScores, ExtractionResult, ImageMetadata
+from .models import (
+    BenchmarkResult,
+    BookMetadata,
+    ConfidenceScores,
+    ExtractionResult,
+    ImageMetadata,
+    MagazineConfidenceScores,
+    MagazineMetadata,
+)
 from .validation import extract_isbn_candidates
+from .vlm_client import VLMClient
 from .vparse_client import parse_pdf_via_vparse
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "models"))
 
 
 class ExtractionPipeline:
-    def __init__(self, model_id: str | None = None):
-        model = model_id or os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct")
-        tensor_parallel_size = int(os.getenv("VLLM_TENSOR_PARALLEL_SIZE", "1"))
-        gpu_memory_utilization = float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "0.85"))
-        dtype = os.getenv("VLLM_DTYPE", "bfloat16")
-
-        self.llm = LLM(
-            model=model,
-            tensor_parallel_size=tensor_parallel_size,
-            dtype=dtype,
-            max_model_len=8192,
-            gpu_memory_utilization=gpu_memory_utilization,
-        )
+    def __init__(self, model_id: str | None = None, max_model_len: int = 4096):
+        self.vlm_client = VLMClient.get_instance(model_id=model_id, max_model_len=max_model_len)
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         # Call vParse OCR API with the selected language
@@ -81,9 +82,54 @@ class ExtractionPipeline:
     async def process_text_file(self, file_path: str, benchmark: bool = False) -> dict[str, Any]:
         with open(file_path, encoding="utf-8") as f:
             content = f.read()
+
+        # Check if it's a structured JSON with transcription (already OCR'd content)
+        try:
+            data = json.loads(content)
+            if isinstance(data, dict) and "transcription" in data:
+                # Use the transcription field directly
+                text = data.get("transcription", "")
+                lang = data.get("language", "te")
+                return await self.extract_from_text(text, benchmark=benchmark, lang=lang)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
         return await self.extract_from_text(content, benchmark=benchmark)
 
-    async def extract_from_text(self, text: str, benchmark: bool = False) -> dict[str, Any]:
+    def _detect_content_type(self, text: str) -> str:
+        """Detect if content is a magazine/periodical or book."""
+        text_lower = text.lower()
+
+        # Magazine indicators (English and Telugu)
+        magazine_patterns = [
+            "మాసపత్రిక",  # monthly magazine (Telugu)
+            "సంచిక",  # issue (Telugu)
+            "చందా",  # subscription (Telugu)
+            "ఏజంట్లు",  # agents (Telugu)
+            "magazine",
+            "issue",
+            "vol.",
+            "no.",
+            "subscription",
+            "monthly",
+            "periodical",
+        ]
+
+        for pattern in magazine_patterns:
+            if pattern in text_lower:
+                return "magazine"
+
+        return "book"
+
+    async def extract_from_text(self, text: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
+        content_type = self._detect_content_type(text)
+
+        if content_type == "magazine":
+            return await self._extract_magazine_metadata(text, benchmark=benchmark, lang=lang)
+        else:
+            return await self._extract_book_metadata(text, benchmark=benchmark)
+
+    async def _extract_book_metadata(self, text: str, benchmark: bool = False) -> dict[str, Any]:
         # ISBN Extraction
         isbns = extract_isbn_candidates(text)
 
@@ -130,6 +176,76 @@ class ExtractionPipeline:
             return BenchmarkResult(result=result, debug=debug_info).dict()
         return result.dict()
 
+    async def _extract_magazine_metadata(self, text: str, benchmark: bool = False, lang: str = "te") -> dict[str, Any]:
+        # LLM Semantic Extraction for magazines
+        llm_result = self.extract_magazine_semantic_fields(text, lang=lang)
+
+        # Build confidence scores
+        confidence = MagazineConfidenceScores(
+            magazine_name=0.8 if llm_result.get("magazine_name") else 0.0,
+            editor=0.7 if llm_result.get("editor") else 0.0,
+            publisher=0.7 if llm_result.get("publisher") else 0.0,
+            issue_date=0.8 if llm_result.get("issue_date") else 0.0,
+            issue_number=0.6 if llm_result.get("issue_number") else 0.0,
+            price=0.6 if llm_result.get("price") else 0.0,
+        )
+
+        magazine_meta = MagazineMetadata(
+            magazine_name=llm_result.get("magazine_name"),
+            editor=llm_result.get("editor"),
+            publisher=llm_result.get("publisher"),
+            issue_date=llm_result.get("issue_date"),
+            issue_number=llm_result.get("issue_number"),
+            price=llm_result.get("price"),
+            language=lang,
+            confidence=confidence,
+        )
+
+        result = ExtractionResult(magazine_metadata=magazine_meta)
+        debug_info = {"llm_raw_output": llm_result, "text_snippet": text[:500]}
+
+        if benchmark:
+            return BenchmarkResult(result=result, debug=debug_info).dict()
+        return result.dict()
+
+    def extract_magazine_semantic_fields(self, text: str, lang: str = "te") -> dict[str, Any]:
+        _ = lang
+        prompt = f"""Extract magazine metadata from the OCR text below.
+The text is in Telugu (తెలుగు) and English.
+
+Return ONLY a valid JSON object with these fields (use null for unknown fields):
+- "magazine_name": Name of the magazine (e.g., "చందమామ", "Chandamama")
+- "editor": Editor name (look for "సంపాదకుడు", "నంచాలకుడు", "Editor")
+- "publisher": Publisher name (look for "ప్రచురణ", "ఆఫీసు", "Office")
+- "issue_date": Issue month and year (e.g., "August 1948", "ఆగస్టు 1948")
+- "issue_number": Issue/volume number (look for "సంచిక", "నంపుటి", "Vol.", "No.")
+- "price": Price (look for "ఖరీదు", "రేటు", "Price", "Rs.")
+
+Example:
+{{"magazine_name": "చందమామ", "editor": "చక్రపాతి", "issue_date": "August 1948", "issue_number": "2"}}
+
+OCR Text:
+{text[:3000]}
+
+JSON:
+"""
+        try:
+            sampling_params = SamplingParams(temperature=0.1, max_tokens=512, stop=["```"])
+            outputs = self.vlm_client.generate([prompt], sampling_params)
+            text_out = outputs[0].outputs[0].text.strip()
+            start = text_out.find("{")
+            end = text_out.rfind("}") + 1
+            if start != -1 and end != -1:
+                raw = text_out[start:end]
+                logger.info(f"Raw LLM magazine output: {raw}")
+                result = json.loads(raw)
+                return result
+            else:
+                logger.warning(f"No JSON found in LLM output: {text_out}")
+        except Exception as e:
+            logger.warning(f"Failed to parse magazine JSON: {e}, raw: {text_out}")
+        return {}
+
     def extract_semantic_fields(self, text: str) -> dict[str, Any]:
         prompt = f"""You are an expert book metadata extractor. Your task is to identify and extract
 structured metadata from noisy OCR text of scanned book pages.
@@ -162,7 +278,7 @@ JSON:
 """
         try:
             sampling_params = SamplingParams(temperature=0.7, max_tokens=256, stop=["```"])
-            outputs = self.llm.generate([prompt], sampling_params)
+            outputs = self.vlm_client.generate([prompt], sampling_params)
             text_out = outputs[0].outputs[0].text.strip()
             start = text_out.find("{")
             end = text_out.rfind("}") + 1

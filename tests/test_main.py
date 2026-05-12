@@ -322,3 +322,208 @@ def test_cli_api_mode():
         args, kwargs = mock_run.call_args
         assert kwargs["host"] == "0.0.0.0"
         assert kwargs["port"] == 8000
+
+
+def test_model_list_shows_models():
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+    with (
+        patch("bookextractor.hardware.get_vllm_config") as mock_cfg,
+        patch("bookextractor.models_registry.is_model_cached", return_value=False),
+        patch("bookextractor.models_registry.get_cached_model_size", return_value=0),
+    ):
+        mock_cfg.return_value = {"detected_hardware": {"memory_gb": 16}}
+        result = runner.invoke(cli_app, ["model", "list"])
+        assert result.exit_code == 0
+        assert "Qwen/Qwen2.5-VL-7B-Instruct" in result.output
+        assert "Qwen/Qwen3-VL-30B-A3B-Instruct" in result.output
+        assert "google/gemma-4-31b-it" in result.output
+
+
+def test_model_list_with_cached():
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+
+    def is_cached(m):
+        return m == "Qwen/Qwen2.5-VL-7B-Instruct"
+
+    with (
+        patch("bookextractor.hardware.get_vllm_config") as mock_cfg,
+        patch("bookextractor.models_registry.is_model_cached", side_effect=is_cached),
+        patch("bookextractor.models_registry.get_cached_model_size", return_value=8 * 1024**3),
+    ):
+        mock_cfg.return_value = {"detected_hardware": {"memory_gb": 16}}
+        result = runner.invoke(cli_app, ["model", "list"])
+        assert result.exit_code == 0
+
+
+def test_model_cache_empty():
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+    with patch("bookextractor.models_registry.get_cached_models", return_value=[]):
+        result = runner.invoke(cli_app, ["model", "cache"])
+        assert result.exit_code == 0
+        assert "No models cached" in result.output
+
+
+def test_model_cache_with_data():
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+    with (
+        patch("bookextractor.models_registry.get_cached_models", return_value=["Qwen/Qwen2.5-VL-7B-Instruct"]),
+        patch("bookextractor.models_registry.get_cached_model_size", return_value=8 * 1024**3),
+    ):
+        result = runner.invoke(cli_app, ["model", "cache"])
+        assert result.exit_code == 0
+        assert "Qwen/Qwen2.5-VL-7B-Instruct" in result.output
+
+
+def test_model_remove_no_match():
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+    with (
+        patch("bookextractor.models_registry.find_model_by_query", return_value=[]),
+        patch("bookextractor.models_registry.get_cached_models", return_value=[]),
+    ):
+        result = runner.invoke(cli_app, ["model", "remove", "nonexistent"])
+        assert result.exit_code == 1
+        assert "No models match" in result.output
+
+
+def test_model_remove_single_match():
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+    mock_match = [{"id": "testorg/testmodel"}]
+    with (
+        patch("bookextractor.models_registry.find_model_by_query", return_value=mock_match),
+        patch("bookextractor.models_registry.remove_model_from_cache", return_value=True),
+    ):
+        result = runner.invoke(cli_app, ["model", "remove", "testmodel"])
+        assert result.exit_code == 0
+        assert "Removed" in result.output
+
+
+def test_model_remove_not_cached():
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+    mock_match = [{"id": "testorg/testmodel"}]
+    with (
+        patch("bookextractor.models_registry.find_model_by_query", return_value=mock_match),
+        patch("bookextractor.models_registry.remove_model_from_cache", return_value=False),
+    ):
+        result = runner.invoke(cli_app, ["model", "remove", "testmodel"])
+        assert result.exit_code == 0
+        assert "Not cached" in result.output
+
+
+def test_model_remove_multiple_matches():
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+    mock_matches = [{"id": "google/gemma-3-27b-it"}, {"id": "google/gemma-4-31b-it"}]
+    with (
+        patch("bookextractor.models_registry.find_model_by_query", return_value=mock_matches),
+        patch("questionary.select") as mock_select,
+        patch("bookextractor.models_registry.remove_model_from_cache", return_value=True),
+    ):
+        mock_select.return_value.ask.return_value = "google/gemma-3-27b-it"
+        result = runner.invoke(cli_app, ["model", "remove", "gemma"])
+        assert result.exit_code == 0
+        assert "Removed" in result.output
+
+
+def test_model_download_with_selection():
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+    with (
+        patch("bookextractor.models_registry.is_model_cached", return_value=False),
+        patch("questionary.checkbox") as mock_checkbox,
+        patch("huggingface_hub.snapshot_download") as mock_download,
+    ):
+        mock_checkbox.return_value.ask.return_value = ["testorg/testmodel"]
+        result = runner.invoke(cli_app, ["model", "download"])
+        assert result.exit_code == 0
+        mock_download.assert_called_once_with("testorg/testmodel", resume_download=True)
+
+
+def test_model_download_already_cached():
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+    with (
+        patch("bookextractor.models_registry.is_model_cached", return_value=True),
+        patch("questionary.checkbox") as mock_checkbox,
+        patch("huggingface_hub.snapshot_download") as mock_download,
+    ):
+        mock_checkbox.return_value.ask.return_value = ["testorg/testmodel"]
+        result = runner.invoke(cli_app, ["model", "download"])
+        assert result.exit_code == 0
+        mock_download.assert_not_called()
+
+
+def test_model_download_no_selection():
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+    with (
+        patch("questionary.checkbox") as mock_checkbox,
+    ):
+        mock_checkbox.return_value.ask.return_value = None
+        result = runner.invoke(cli_app, ["model", "download"])
+        assert result.exit_code == 0
+        assert "No models selected" in result.output
+
+
+def test_hardware_info_command():
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+    with patch("bookextractor.hardware.get_vllm_config") as mock_cfg:
+        mock_cfg.return_value = {
+            "detected_hardware": {
+                "device": "cuda",
+                "name": "Tesla T4",
+                "count": 1,
+                "memory_gb": 14.56,
+                "precision_supported": ["fp16"],
+            },
+            "dtype": "float16",
+            "gpu_memory_utilization": 0.9,
+            "tensor_parallel_size": 1,
+        }
+        result = runner.invoke(cli_app, ["hardware-info"])
+        assert result.exit_code == 0
+        assert "Tesla T4" in result.output
+        assert "14.56" in result.output
