@@ -469,7 +469,7 @@ def test_model_download_with_selection():
         mock_checkbox.return_value.ask.return_value = ["testorg/testmodel"]
         result = runner.invoke(cli_app, ["model", "download"])
         assert result.exit_code == 0
-        mock_download.assert_called_once_with("testorg/testmodel", resume_download=True)
+        mock_download.assert_called_once_with("testorg/testmodel")
 
 
 def test_model_download_already_cached():

@@ -315,7 +315,7 @@ def model_download_command() -> None:
             continue
         print(f"\n  Downloading {model_id}...")
         try:
-            snapshot_download(model_id, resume_download=True)
+            snapshot_download(model_id)
             print(f"  ✓ {model_id} downloaded successfully.")
         except Exception as e:
             print(f"  ✗ Failed to download {model_id}: {e}")
