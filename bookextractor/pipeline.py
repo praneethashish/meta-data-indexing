@@ -2,8 +2,9 @@ import json
 import logging
 import os
 import re
+from contextlib import suppress
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from vllm import SamplingParams
 
@@ -30,8 +31,8 @@ DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "
 
 class ExtractionPipeline:
     def __init__(self, model_id: str | None = None, max_model_len: int = 4096, load_llm: bool = True):
-        self.llm = None
-        self.vlm_client = None
+        self.llm: Any = None
+        self.vlm_client: VLMClient | None = None
         if load_llm:
             self.vlm_client = VLMClient.get_instance(model_id=model_id, max_model_len=max_model_len)
             self.llm = VLMClient._llm
@@ -54,10 +55,8 @@ class ExtractionPipeline:
         if isinstance(result_data, dict):
             content_list = result_data.get("content_list", [])
             if isinstance(content_list, str):
-                try:
+                with suppress(json.JSONDecodeError, TypeError):
                     content_list = json.loads(content_list)
-                except (json.JSONDecodeError, TypeError):
-                    pass
             if isinstance(content_list, list):
                 full_text = "\n".join(
                     item.get("text", "") for item in content_list if isinstance(item, dict) and item.get("text")
@@ -244,6 +243,8 @@ JSON:
             return {}
         text_out = ""
         try:
+            if self.vlm_client is None:
+                return {}
             sampling_params = SamplingParams(temperature=0.1, max_tokens=512, stop=["```"])
             outputs = self.vlm_client.generate([prompt], sampling_params)
             text_out = outputs[0].outputs[0].text.strip()
@@ -252,7 +253,7 @@ JSON:
             if start != -1 and end != -1:
                 raw = text_out[start:end]
                 logger.info(f"Raw LLM magazine output: {raw}")
-                result = json.loads(raw)
+                result = cast(dict[str, Any], json.loads(raw))
                 return result
             else:
                 logger.warning(f"No JSON found in LLM output: {text_out}")
@@ -299,7 +300,7 @@ JSON:
             start = text_out.find("{")
             end = text_out.rfind("}") + 1
             if start != -1 and end != -1:
-                return json.loads(text_out[start:end])
+                return cast(dict[str, Any], json.loads(text_out[start:end]))
         except Exception:  # nosec
             pass
         return {}

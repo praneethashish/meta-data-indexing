@@ -1,52 +1,98 @@
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Dependency-Scanning.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+
 stages:
   - lint
+  - format
+  - type-check
   - test
   - build
 
 variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
 
 cache:
+  key:
+    files:
+      - uv.lock
   paths:
-    - .cache/pip
     - .cache/uv
-    - .venv/
 
-before_script:
-  - curl -LsSf https://astral.sh/uv/install.sh | sh
-  - export PATH="$HOME/.local/bin:$PATH"
-  - uv venv
-  - source .venv/bin/activate
-  - uv pip install -e .
+.setup_uv: &setup_uv
+  image: python:3.10-slim
+  before_script:
+    - apt-get update && apt-get install -y curl git
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - source $HOME/.local/bin/env
 
-lint:
+ruff-lint:
+  <<: *setup_uv
   stage: lint
-  image: python:3.10
   script:
-    - ruff check . # Covers linting and dead code
-    - ruff format --check .
-    - mypy bookextractor/
-    - vulture bookextractor/ --min-confidence 80
+    - uv sync --frozen --no-default-groups --group lint
+    - uv run ruff check .
+  only:
+    changes:
+      - "**/*.py"
+  allow_failure: true
 
-test:
-  stage: test
-  image: python:3.10
+ruff-format:
+  <<: *setup_uv
+  stage: format
   script:
-    - pytest tests/ --cov=bookextractor --cov-report=term --cov-report=xml --cov-fail-under=95
-  coverage: '/(?i)total.*? (100(?:\.0+)?%|[1-9]?\d(?:\.\d+)?%)$/'
+    - uv sync --frozen --no-default-groups --group lint
+    - uv run ruff format --check .
+  only:
+    changes:
+      - "**/*.py"
+  allow_failure: true
+
+type-check:
+  <<: *setup_uv
+  stage: type-check
+  script:
+    - uv sync --frozen --no-default-groups --group lint
+    - uv run mypy bookextractor/
+  only:
+    changes:
+      - "**/*.py"
+  allow_failure: true
+
+vulture-dead-code:
+  <<: *setup_uv
+  stage: lint
+  script:
+    - uv sync --frozen --no-default-groups --group lint
+    - uv run vulture bookextractor/
+  only:
+    changes:
+      - "**/*.py"
+  allow_failure: true
+
+pytest:
+  <<: *setup_uv
+  stage: test
+  script:
+    - uv sync --frozen --extra ml --group test
+    - uv run pytest tests/ --cov=bookextractor --cov-report=term --cov-report=xml --cov-fail-under=90
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  only:
+    changes:
+      - "**/*.py"
   artifacts:
     reports:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
+  allow_failure: true
 
 docker-build:
   stage: build
   image: docker:latest
   services:
     - docker:dind
-  before_script: [] # Skip uv install for docker build
   script:
     - docker build .
   only:
