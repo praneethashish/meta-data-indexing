@@ -21,8 +21,6 @@ cache:
 
 .setup_uv: &setup_uv
   image: ghcr.io/astral-sh/uv:python3.10-bookworm-slim
-  before_script:
-    - source $HOME/.local/bin/env
 
 ruff-lint:
   <<: *setup_uv
