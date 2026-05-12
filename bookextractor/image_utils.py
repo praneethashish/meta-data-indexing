@@ -63,7 +63,7 @@ def extract_image_metadata(image_path: str) -> dict[str, Any]:
         metadata = {
             "width": width,
             "height": height,
-            "format": img_format,
+            "format": img_format or "UNKNOWN",
             "dpi_horizontal": float(dpi[0]) if dpi[0] is not None else None,
             "dpi_vertical": float(dpi[1]) if dpi[1] is not None else None,
             "color_space": img.mode,

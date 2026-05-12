@@ -2,7 +2,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-HF_CACHE_DIR = Path(os.path.expanduser("~/.cache/huggingface/hub"))
+_base_cache = os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+HF_CACHE_DIR = Path(_base_cache) / "hub" if not _base_cache.endswith("hub") else Path(_base_cache)
 
 AVAILABLE_MODELS: list[dict[str, Any]] = [
     {
@@ -39,6 +40,13 @@ AVAILABLE_MODELS: list[dict[str, Any]] = [
         "type": "text",
         "min_vram_gb": 32,
         "desc": "Latest Gemma, requires high-end GPU",
+    },
+    {
+        "id": "google/gemma-4-E4B-it",
+        "name": "Gemma 4 E4B",
+        "type": "text",
+        "min_vram_gb": 8,
+        "desc": "Gemma 4 E4B — compact, excellent for metadata extraction",
     },
 ]
 

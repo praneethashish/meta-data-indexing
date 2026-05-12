@@ -23,7 +23,9 @@ class VLMClient:
         Initialize the VLMClient. Note: Use get_instance() for shared LLM resource.
         """
         if VLMClient._llm is None:
-            self.model_id = model_id or os.getenv("VLLM_MODEL") or self._detect_cached_model()
+            self.model_id = (
+                model_id or os.getenv("VLLM_MODEL_ID") or os.getenv("VLLM_MODEL") or self._detect_cached_model()
+            )
             self.max_model_len = max_model_len
             self._initialize_llm()
 

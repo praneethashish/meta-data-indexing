@@ -23,7 +23,7 @@ class OCRLanguage(str, Enum):
 app = FastAPI()
 cli_app = typer.Typer()
 pipeline = None
-ALLOWED_EXTENSIONS = (".pdf", ".md", ".json", ".jpg", ".jpeg", ".png", ".webp", ".tiff")
+ALLOWED_EXTENSIONS = (".pdf", ".md", ".json", ".txt", ".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")
 UPLOAD_DIR = os.getenv("BOOKEXTRACTOR_UPLOAD_DIR", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -65,10 +65,10 @@ async def extract_async(
     try:
         if filename.endswith(".pdf"):
             task = extract_pdf_task.delay(save_path, lang=lang.value)
-        elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff")):
+        elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")):
             task = extract_image_task.delay(save_path)
         else:
-            task = extract_text_task.delay(save_path)
+            task = extract_text_task.delay(save_path, lang=lang.value)
 
         return {"job_id": task.id, "status": "submitted"}
     except Exception as e:
@@ -113,9 +113,9 @@ async def _extract_file(
 
     if filename.endswith(".pdf"):
         result = await p.process_pdf(input_file, benchmark=benchmark, lang=lang.value)
-    elif filename.endswith((".md", ".json")):
-        result = await p.process_text_file(input_file, benchmark=benchmark)
-    elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff")):
+    elif filename.endswith((".md", ".json", ".txt")):
+        result = await p.process_text_file(input_file, benchmark=benchmark, lang=lang.value)
+    elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")):
         result = await p.process_image(input_file, benchmark=benchmark)
     else:
         print(f"Error: Unsupported file type: {input_file}")
@@ -154,10 +154,10 @@ async def extract(
             p = get_pipeline()
             if filename.endswith(".pdf"):
                 result = await p.process_pdf(temp_path, lang=lang.value)
-            elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff")):
+            elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")):
                 result = await p.process_image(temp_path)
             else:
-                result = await p.process_text_file(temp_path)
+                result = await p.process_text_file(temp_path, lang=lang.value)
             return result
         finally:
             pass  # TemporaryDirectory handles cleanup
@@ -184,7 +184,9 @@ def main(
 
 @cli_app.command("extract")
 def extract_command(
-    input_file: str = typer.Argument(..., help="Input file path (.pdf, .md, .json, .jpg, .png, .webp, .tiff)"),  # noqa: B008
+    input_file: str = typer.Argument(
+        ..., help="Input file path (.pdf, .md, .json, .txt, .jpg, .png, .webp, .tiff, .tif)"
+    ),  # noqa: B008, E501
     output_json: str = typer.Argument(..., help="Path to output JSON"),  # noqa: B008
     benchmark: bool = typer.Option(False, "--benchmark", help="Enable benchmark mode"),  # noqa: B008
     lang: OCRLanguage = typer.Option(  # noqa: B008

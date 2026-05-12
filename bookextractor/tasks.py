@@ -52,13 +52,13 @@ def extract_image_task(self, image_path: str, benchmark: bool = False):  # noqa:
 
 
 @celery_app.task(name="bookextractor.extract_text", bind=True)
-def extract_text_task(self, file_path: str, benchmark: bool = False):  # noqa: ARG001
+def extract_text_task(self, file_path: str, benchmark: bool = False, lang: str = "en"):  # noqa: ARG001
     """Celery task for text/json file extraction."""
 
     try:
         # Needs LLM for semantic extraction
         p = get_pipeline(load_llm=True)
-        return asyncio.run(p.process_text_file(file_path, benchmark=benchmark))
+        return asyncio.run(p.process_text_file(file_path, benchmark=benchmark, lang=lang))
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)

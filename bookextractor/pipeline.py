@@ -72,7 +72,7 @@ class ExtractionPipeline:
         full_text = re.sub(r"\n{3,}", "\n\n", full_text)  # Collapse whitespace
         full_text = full_text.strip()
 
-        return await self.extract_from_text(full_text, benchmark=benchmark)
+        return await self.extract_from_text(full_text, benchmark=benchmark, lang=lang)
 
     async def process_image(self, image_path: str, benchmark: bool = False) -> dict[str, Any]:
         metadata_dict = extract_image_metadata(image_path)
@@ -83,21 +83,25 @@ class ExtractionPipeline:
             return BenchmarkResult(result=result).model_dump()
         return result.model_dump()
 
-    async def process_text_file(self, file_path: str, benchmark: bool = False) -> dict[str, Any]:
+    async def process_text_file(self, file_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         with open(file_path, encoding="utf-8") as f:
             content = f.read()
+
+        if not content.strip():
+            return ExtractionResult().model_dump()
 
         # Check if it's a structured JSON with transcription (already OCR'd content)
         try:
             data = json.loads(content)
             if isinstance(data, dict) and "transcription" in data:
-                # Use the transcription field directly
-                text = data.get("transcription", "")
-                lang = data.get("language", "te")
-                return await self.extract_from_text(text, benchmark=benchmark, lang=lang)
+                transcription = data.get("transcription")
+                if transcription is None:
+                    transcription = json.dumps(data)
+                detected_lang = data.get("language", lang)
+                return await self.extract_from_text(str(transcription), benchmark=benchmark, lang=detected_lang)
         except (json.JSONDecodeError, TypeError):
             pass
-        return await self.extract_from_text(content, benchmark=benchmark)
+        return await self.extract_from_text(content, benchmark=benchmark, lang=lang)
 
     def _detect_content_type(self, text: str) -> str:
         """Detect if content is a magazine/periodical or book."""
@@ -212,17 +216,21 @@ class ExtractionPipeline:
         return result.model_dump()
 
     def extract_magazine_semantic_fields(self, text: str, lang: str = "te") -> dict[str, Any]:
-        _ = lang
+        lang_label = {
+            "te": "Telugu (తెలుగు)",
+            "en": "English",
+            "hi": "Hindi (हिन्दी)",
+        }.get(lang, "Telugu (తెలుగు) and English")
         prompt = f"""Extract magazine metadata from the OCR text below.
-The text is in Telugu (తెలుగు) and English.
+The text is primarily in {lang_label}.
 
 Return ONLY a valid JSON object with these fields (use null for unknown fields):
-- "magazine_name": Name of the magazine (e.g., "చందమామ", "Chandamama")
-- "editor": Editor name (look for "సంపాదకుడు", "నంచాలకుడు", "Editor")
-- "publisher": Publisher name (look for "ప్రచురణ", "ఆఫీసు", "Office")
-- "issue_date": Issue month and year (e.g., "August 1948", "ఆగస్టు 1948")
-- "issue_number": Issue/volume number (look for "సంచిక", "నంపుటి", "Vol.", "No.")
-- "price": Price (look for "ఖరీదు", "రేటు", "Price", "Rs.")
+- "magazine_name": Name of the magazine
+- "editor": Editor name
+- "publisher": Publisher name
+- "issue_date": Issue month and year
+- "issue_number": Issue/volume number
+- "price": Price
 
 Example:
 {{"magazine_name": "చందమామ", "editor": "చక్రపాతి", "issue_date": "August 1948", "issue_number": "2"}}
@@ -232,6 +240,8 @@ OCR Text:
 
 JSON:
 """
+        if self.vlm_client is None:
+            return {}
         text_out = ""
         try:
             sampling_params = SamplingParams(temperature=0.1, max_tokens=512, stop=["```"])
@@ -281,7 +291,7 @@ OCR Text:
 JSON:
 """
         try:
-            if self.llm is None:
+            if self.vlm_client is None:
                 return {}
             sampling_params = SamplingParams(temperature=0.7, max_tokens=256, stop=["```"])
             outputs = self.vlm_client.generate([prompt], sampling_params)

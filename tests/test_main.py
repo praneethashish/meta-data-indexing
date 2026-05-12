@@ -132,7 +132,7 @@ async def test_extract_json_routes_correctly(test_client, sample_json_bytes, moc
 @pytest.mark.asyncio
 async def test_extract_unsupported_type_returns_400(test_client, mock_pipeline):
     with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        files = {"file": ("test.txt", BytesIO(b"Plain text"), "text/plain")}
+        files = {"file": ("test.docx", BytesIO(b"Plain text"), "application/octet-stream")}
         response = test_client.post("/extract", files=files)
 
         assert response.status_code == 400
@@ -299,7 +299,7 @@ def test_cli_unsupported_file_type_hits_else(tmp_path):
     from bookextractor.main import cli_app
 
     runner = CliRunner()
-    input_file = tmp_path / "test.txt"
+    input_file = tmp_path / "test.docx"
     input_file.write_text("content")
     output_file = tmp_path / "output.json"
 

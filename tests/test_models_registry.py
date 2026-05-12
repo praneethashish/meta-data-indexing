@@ -16,7 +16,7 @@ from bookextractor.vlm_client import VLMClient
 
 class TestModelsRegistry:
     def test_available_models_defined(self):
-        assert len(AVAILABLE_MODELS) == 5
+        assert len(AVAILABLE_MODELS) == 6
         ids = [m["id"] for m in AVAILABLE_MODELS]
         assert "Qwen/Qwen2.5-VL-7B-Instruct" in ids
         assert "Qwen/Qwen3-VL-30B-A3B-Instruct" in ids
@@ -96,7 +96,7 @@ class TestModelsRegistry:
 
     def test_find_model_by_query_partial(self):
         matches = find_model_by_query("gemma")
-        assert len(matches) == 2
+        assert len(matches) == 3
 
     def test_find_model_by_query_no_match(self):
         matches = find_model_by_query("nonexistent")

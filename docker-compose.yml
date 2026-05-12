@@ -8,13 +8,14 @@ services:
       - "8000:8000"
     environment:
       - VPARSE_API_URL=http://vparse:8000/file_parse
-      - VLLM_MODEL=/models/vllm/google/gemma-4-E4B-it
+      - VLLM_MODEL=${VLLM_MODEL_ID:-Qwen/Qwen2.5-VL-7B-Instruct}
       - VLLM_TENSOR_PARALLEL_SIZE=1
       - HF_HOME=/models/huggingface
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - BOOKEXTRACTOR_UPLOAD_DIR=/app/uploads
     volumes:
+      - ~/.cache/huggingface:/models/huggingface
       - models:/models
       - ./uploads:/app/uploads
     depends_on:
@@ -46,10 +47,14 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - BOOKEXTRACTOR_UPLOAD_DIR=/app/uploads
+      - HF_HOME=/models/huggingface
     volumes:
+      - ~/.cache/huggingface:/models/huggingface
       - models:/models
       - ./uploads:/app/uploads
     depends_on:
+      model-downloader:
+        condition: service_completed_successfully
       redis:
         condition: service_started
 
@@ -60,13 +65,14 @@ services:
     image: bookextractor:latest
     command: bookextractor worker --queue vlm_queue --concurrency 2
     environment:
-      - VLLM_MODEL=/models/vllm/google/gemma-4-E4B-it
+      - VLLM_MODEL=${VLLM_MODEL_ID:-Qwen/Qwen2.5-VL-7B-Instruct}
       - VLLM_TENSOR_PARALLEL_SIZE=1
       - HF_HOME=/models/huggingface
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - BOOKEXTRACTOR_UPLOAD_DIR=/app/uploads
     volumes:
+      - ~/.cache/huggingface:/models/huggingface
       - models:/models
       - ./uploads:/app/uploads
     depends_on:
@@ -87,12 +93,11 @@ services:
       context: .
       dockerfile: Dockerfile.model-downloader
     volumes:
+      - ~/.cache/huggingface:/models/huggingface
       - models:/models
       - ./scripts/setup_models.py:/app/setup_models.py
     environment:
-      - VLLM_MODEL_ID=google/gemma-4-E4B-it
-      - VLLM_MODEL_PATH=/models/vllm/google/gemma-4-E4B-it
-      - MODELSCOPE_CACHE=/models/modelscope
+      - VLLM_MODEL_ID=${VLLM_MODEL_ID:-Qwen/Qwen2.5-VL-7B-Instruct}
       - HF_HOME=/models/huggingface
     command: python -u /app/setup_models.py
 
@@ -119,6 +124,7 @@ services:
       - MODELSCOPE_CACHE=/models/modelscope
       - HF_HOME=/models/huggingface
     volumes:
+      - ~/.cache/huggingface:/models/huggingface
       - models:/models
     ulimits:
       memlock: -1
@@ -155,6 +161,7 @@ services:
       - MODELSCOPE_CACHE=/models/modelscope
       - HF_HOME=/models/huggingface
     volumes:
+      - ~/.cache/huggingface:/models/huggingface
       - models:/models
     ulimits:
       memlock: -1
@@ -199,6 +206,7 @@ services:
       - MODELSCOPE_CACHE=/models/modelscope
       - HF_HOME=/models/huggingface
     volumes:
+      - ~/.cache/huggingface:/models/huggingface
       - models:/models
     ulimits:
       memlock: -1
