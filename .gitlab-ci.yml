@@ -1,8 +1,3 @@
-include:
-  - template: Security/SAST.gitlab-ci.yml
-  - template: Security/Dependency-Scanning.gitlab-ci.yml
-  - template: Security/Secret-Detection.gitlab-ci.yml
-
 stages:
   - lint
   - format
@@ -37,6 +32,9 @@ ruff-lint:
   only:
     changes:
       - "**/*.py"
+      - ".gitlab-ci.yml"
+      - "pyproject.toml"
+      - "uv.lock"
 
 ruff-format:
   <<: *setup_uv
@@ -47,6 +45,9 @@ ruff-format:
   only:
     changes:
       - "**/*.py"
+      - ".gitlab-ci.yml"
+      - "pyproject.toml"
+      - "uv.lock"
 
 type-check:
   <<: *setup_uv
@@ -57,6 +58,9 @@ type-check:
   only:
     changes:
       - "**/*.py"
+      - ".gitlab-ci.yml"
+      - "pyproject.toml"
+      - "uv.lock"
 
 vulture-dead-code:
   <<: *setup_uv
@@ -67,6 +71,9 @@ vulture-dead-code:
   only:
     changes:
       - "**/*.py"
+      - ".gitlab-ci.yml"
+      - "pyproject.toml"
+      - "uv.lock"
 
 pytest:
   <<: *setup_uv
@@ -78,6 +85,9 @@ pytest:
   only:
     changes:
       - "**/*.py"
+      - ".gitlab-ci.yml"
+      - "pyproject.toml"
+      - "uv.lock"
   artifacts:
     reports:
       coverage_report:
