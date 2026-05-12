@@ -87,9 +87,6 @@ asyncio_mode = "auto"
 [tool.bandit]
 exclude_dirs = ["tests"]
 skips = ["B101"]
-<<<<<<< HEAD
 
 [dependency-groups]
 dev = []
-=======
->>>>>>> 2be131a (fix(ci): modify ci dependencies to fix pipeline)

@@ -3,7 +3,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any
 
 from vllm import SamplingParams
 
@@ -29,48 +29,12 @@ DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "
 
 
 class ExtractionPipeline:
-<<<<<<< HEAD
-<<<<<<< HEAD
-    def __init__(self, model_id: str | None = None, max_model_len: int = 4096):
-        self.vlm_client = VLMClient.get_instance(model_id=model_id, max_model_len=max_model_len)
-=======
-    def __init__(self, model_id: str | None = None):
-        model = str(model_id or os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct"))
-        tensor_parallel_size = int(os.getenv("VLLM_TENSOR_PARALLEL_SIZE", "1"))
-        gpu_memory_utilization = float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "0.85"))
-        dtype = cast(
-            Literal["auto", "half", "float16", "bfloat16", "float", "float32"],
-            os.getenv("VLLM_DTYPE", "bfloat16"),
-        )
-
-        self.llm = LLM(
-            model=model,
-            tensor_parallel_size=tensor_parallel_size,
-            dtype=dtype,
-            max_model_len=8192,
-            gpu_memory_utilization=gpu_memory_utilization,
-        )
->>>>>>> 4f58726 (fix(pipeline): improve json parsing and increase LLM context window)
-=======
-    def __init__(self, model_id: str | None = None, load_llm: bool = True):
+    def __init__(self, model_id: str | None = None, max_model_len: int = 4096, load_llm: bool = True):
         self.llm = None
+        self.vlm_client = None
         if load_llm:
-            model = str(model_id or os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct"))
-            tensor_parallel_size = int(os.getenv("VLLM_TENSOR_PARALLEL_SIZE", "1"))
-            gpu_memory_utilization = float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "0.85"))
-            dtype = cast(
-                Literal["auto", "half", "float16", "bfloat16", "float", "float32"],
-                os.getenv("VLLM_DTYPE", "bfloat16"),
-            )
-
-            self.llm = LLM(
-                model=model,
-                tensor_parallel_size=tensor_parallel_size,
-                dtype=dtype,
-                max_model_len=8192,
-                gpu_memory_utilization=gpu_memory_utilization,
-            )
->>>>>>> 066f554 (feat(async): implement celery and redis background task queue)
+            self.vlm_client = VLMClient.get_instance(model_id=model_id, max_model_len=max_model_len)
+            self.llm = VLMClient._llm
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         # Call vParse OCR API with the selected language
@@ -116,11 +80,10 @@ class ExtractionPipeline:
         result = ExtractionResult(image_metadata=img_meta)
 
         if benchmark:
-            return BenchmarkResult(result=result).dict()
-        return result.dict()
+            return BenchmarkResult(result=result).model_dump()
+        return result.model_dump()
 
     async def process_text_file(self, file_path: str, benchmark: bool = False) -> dict[str, Any]:
-<<<<<<< HEAD
         with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -134,24 +97,6 @@ class ExtractionPipeline:
                 return await self.extract_from_text(text, benchmark=benchmark, lang=lang)
         except (json.JSONDecodeError, TypeError):
             pass
-
-=======
-        if file_path.lower().endswith(".json"):
-            try:
-                with open(file_path, encoding="utf-8") as f:
-                    data = json.load(f)
-                if isinstance(data, dict) and "transcription" in data:
-                    content = data["transcription"]
-                else:
-                    # Fallback if key missing: stringify the whole thing (current behavior)
-                    content = json.dumps(data)
-            except (OSError, json.JSONDecodeError):
-                with open(file_path, encoding="utf-8") as f:
-                    content = f.read()
-        else:
-            with open(file_path, encoding="utf-8") as f:
-                content = f.read()
->>>>>>> 4f58726 (fix(pipeline): improve json parsing and increase LLM context window)
         return await self.extract_from_text(content, benchmark=benchmark)
 
     def _detect_content_type(self, text: str) -> str:
@@ -231,8 +176,8 @@ class ExtractionPipeline:
         debug_info = {"isbn_candidates": isbns, "llm_raw_output": llm_result, "text_snippet": text[:500]}
 
         if benchmark:
-            return BenchmarkResult(result=result, debug=debug_info).dict()
-        return result.dict()
+            return BenchmarkResult(result=result, debug=debug_info).model_dump()
+        return result.model_dump()
 
     async def _extract_magazine_metadata(self, text: str, benchmark: bool = False, lang: str = "te") -> dict[str, Any]:
         # LLM Semantic Extraction for magazines
@@ -263,8 +208,8 @@ class ExtractionPipeline:
         debug_info = {"llm_raw_output": llm_result, "text_snippet": text[:500]}
 
         if benchmark:
-            return BenchmarkResult(result=result, debug=debug_info).dict()
-        return result.dict()
+            return BenchmarkResult(result=result, debug=debug_info).model_dump()
+        return result.model_dump()
 
     def extract_magazine_semantic_fields(self, text: str, lang: str = "te") -> dict[str, Any]:
         _ = lang
@@ -287,6 +232,7 @@ OCR Text:
 
 JSON:
 """
+        text_out = ""
         try:
             sampling_params = SamplingParams(temperature=0.1, max_tokens=512, stop=["```"])
             outputs = self.vlm_client.generate([prompt], sampling_params)

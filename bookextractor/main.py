@@ -209,7 +209,29 @@ def api_command(
     _run_api(host=host, port=port)
 
 
-<<<<<<< HEAD
+@cli_app.command("worker")
+def worker_command(
+    queue: str = typer.Option("default_queue", "--queue", "-q", help="Celery queue to listen to"),
+    concurrency: int = typer.Option(4, "--concurrency", "-c", help="Number of concurrent worker processes"),
+):
+    """Start a Celery worker for background processing."""
+    print(f"Starting Celery worker for queue: {queue} (concurrency: {concurrency})")
+    import subprocess  # nosec
+
+    cmd = [
+        "celery",
+        "-A",
+        "bookextractor.tasks",
+        "worker",
+        "-Q",
+        queue,
+        "--concurrency",
+        str(concurrency),
+        "--loglevel=info",
+    ]
+    subprocess.run(cmd)  # nosec
+
+
 @cli_app.command("hardware-info")
 def hardware_info_command() -> None:
     """Display detected hardware and suggested vLLM configuration."""
@@ -353,30 +375,6 @@ def model_cache_command() -> None:
     print("-" * 62)
     print(f"{'Total':<50} {total / 1024**3:.2f} GB")
     print()
-=======
-@cli_app.command("worker")
-def worker_command(
-    queue: str = typer.Option("default_queue", "--queue", "-q", help="Celery queue to listen to"),
-    concurrency: int = typer.Option(4, "--concurrency", "-c", help="Number of concurrent worker processes"),
-):
-    """Start a Celery worker for background processing."""
-    print(f"Starting Celery worker for queue: {queue} (concurrency: {concurrency})")
-    # Execute celery worker command
-    import subprocess  # nosec
-
-    cmd = [
-        "celery",
-        "-A",
-        "bookextractor.tasks",
-        "worker",
-        "-Q",
-        queue,
-        "--concurrency",
-        str(concurrency),
-        "--loglevel=info",
-    ]
-    subprocess.run(cmd)  # nosec
->>>>>>> 066f554 (feat(async): implement celery and redis background task queue)
 
 
 if __name__ == "__main__":

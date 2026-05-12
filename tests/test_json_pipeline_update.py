@@ -10,9 +10,12 @@ from bookextractor.pipeline import ExtractionPipeline
 
 @pytest.fixture
 def pipeline():
-    # Mock vLLM to avoid loading actual model during tests
-    with patch("bookextractor.pipeline.LLM"):
-        return ExtractionPipeline()
+    # Mock VLMClient to avoid loading actual model during tests
+    with patch("bookextractor.vlm_client.VLMClient.get_instance"):
+        p = ExtractionPipeline()
+        p.vlm_client = MagicMock()
+        p.llm = MagicMock()
+        return p
 
 
 @pytest.mark.asyncio
@@ -20,7 +23,7 @@ async def test_process_json_with_transcription(pipeline):
     # Mock LLM generation
     mock_output = MagicMock()
     mock_output.outputs = [MagicMock(text='{"title": "Chandamama", "author": "Chakrapani"}')]
-    pipeline.llm.generate = MagicMock(return_value=[mock_output])
+    pipeline.vlm_client.generate = MagicMock(return_value=[mock_output])
 
     # Mock ISBN lookup
     with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_isbn:
@@ -64,7 +67,7 @@ async def test_process_json_fallback_if_no_transcription(pipeline):
     # Mock LLM generation
     mock_output = MagicMock()
     mock_output.outputs = [MagicMock(text='{"title": "Raw JSON Title"}')]
-    pipeline.llm.generate = MagicMock(return_value=[mock_output])
+    pipeline.vlm_client.generate = MagicMock(return_value=[mock_output])
 
     with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_isbn:
         mock_isbn.return_value = {}
@@ -99,10 +102,10 @@ async def test_truncation_limit_increased(pipeline):
 
     mock_output = MagicMock()
     mock_output.outputs = [MagicMock(text='{"title": "Secret"}')]
-    pipeline.llm.generate = MagicMock(return_value=[mock_output])
+    pipeline.vlm_client.generate = MagicMock(return_value=[mock_output])
 
     # We test extract_semantic_fields directly to verify prompt construction
-    with patch.object(pipeline.llm, "generate", return_value=[mock_output]) as mock_gen:
+    with patch.object(pipeline.vlm_client, "generate", return_value=[mock_output]) as mock_gen:
         pipeline.extract_semantic_fields(long_text)
 
         mock_gen.assert_called_once()

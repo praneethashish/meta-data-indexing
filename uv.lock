@@ -429,11 +429,8 @@ dependencies = [
     { name = "pytest-httpx" },
     { name = "pytest-mock" },
     { name = "python-multipart" },
-<<<<<<< HEAD
     { name = "questionary" },
-=======
     { name = "redis" },
->>>>>>> 066f554 (feat(async): implement celery and redis background task queue)
     { name = "requests" },
     { name = "ruff" },
     { name = "typer" },
@@ -466,11 +463,8 @@ requires-dist = [
     { name = "pytest-httpx", specifier = ">=0.36.2" },
     { name = "pytest-mock", specifier = ">=1.15.0" },
     { name = "python-multipart", specifier = ">=0.0.6" },
-<<<<<<< HEAD
     { name = "questionary", specifier = ">=2.0.0" },
-=======
     { name = "redis", specifier = ">=5.0.0" },
->>>>>>> 066f554 (feat(async): implement celery and redis background task queue)
     { name = "requests", specifier = ">=2.31.0" },
     { name = "ruff", specifier = ">=0.1.0" },
     { name = "typer", specifier = ">=0.9.0" },
@@ -479,12 +473,9 @@ requires-dist = [
     { name = "vulture", specifier = ">=2.0" },
 ]
 
-<<<<<<< HEAD
 [package.metadata.requires-dev]
 dev = []
 
-=======
->>>>>>> 2be131a (fix(ci): modify ci dependencies to fix pipeline)
 [[package]]
 name = "cachetools"
 version = "7.1.0"
