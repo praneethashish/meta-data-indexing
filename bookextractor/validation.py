@@ -33,7 +33,6 @@ def extract_isbn_candidates(text: str) -> list:
     for m in matches:
         clean = re.sub(r"[\s\-]", "", m)
         # Check if it looks like an ISBN
-        if len(clean) in [10, 13]:
-            if validate_isbn(clean):
-                valid_isbns.append(clean)
+        if len(clean) in [10, 13] and validate_isbn(clean):
+            valid_isbns.append(clean)
     return valid_isbns

@@ -96,17 +96,18 @@ async def test_process_pdf_calls_vparse(mock_vlm_client, sample_vparse_response,
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
 
-        with patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse:
+        with (
+            patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
+            patch("bookextractor.pipeline.extract_isbn_candidates", return_value=["978-0123456789"]),
+            patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_lookup,
+        ):
             mock_vparse.return_value = sample_vparse_response
+            mock_lookup.return_value = {}
 
-            with patch("bookextractor.pipeline.extract_isbn_candidates", return_value=["978-0123456789"]):
-                with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_lookup:
-                    mock_lookup.return_value = {}
+            result = await pipeline.process_pdf(str(pdf_path))
 
-                    result = await pipeline.process_pdf(str(pdf_path))
-
-                    mock_vparse.assert_called_once()
-                    assert "book_metadata" in result
+            mock_vparse.assert_called_once()
+            assert "book_metadata" in result
 
 
 @pytest.mark.asyncio
@@ -118,15 +119,17 @@ async def test_process_pdf_fallback_content_list(mock_vlm_client, sample_vparse_
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
 
-        with patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse:
+        with (
+            patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
+            patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
+            patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        ):
             mock_vparse.return_value = sample_vparse_content_list
 
-            with patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]):
-                with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}):
-                    result = await pipeline.process_pdf(str(pdf_path))
+            result = await pipeline.process_pdf(str(pdf_path))
 
-                    mock_vparse.assert_called_once()
-                    assert "book_metadata" in result
+            mock_vparse.assert_called_once()
+            assert "book_metadata" in result
 
 
 @pytest.mark.asyncio
@@ -170,11 +173,13 @@ async def test_process_text_file_reads_content(mock_vlm_client, tmp_path):
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
 
-        with patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]):
-            with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}):
-                result = await pipeline.process_text_file(str(text_path))
+        with (
+            patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
+            patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        ):
+            result = await pipeline.process_text_file(str(text_path))
 
-                assert "book_metadata" in result
+            assert "book_metadata" in result
 
 
 @pytest.mark.asyncio
@@ -183,13 +188,15 @@ async def test_extract_from_text_with_isbn(mock_vlm_client, mock_isbn_lookup, sa
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
 
-        with patch("bookextractor.pipeline.extract_isbn_candidates", return_value=["978-0123456789"]):
-            with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, side_effect=mock_isbn_lookup):
-                result = await pipeline.extract_from_text(sample_book_text)
+        with (
+            patch("bookextractor.pipeline.extract_isbn_candidates", return_value=["978-0123456789"]),
+            patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, side_effect=mock_isbn_lookup),
+        ):
+            result = await pipeline.extract_from_text(sample_book_text)
 
-                assert "book_metadata" in result
-                metadata = result["book_metadata"]
-                assert metadata["isbn"] == "978-0123456789"
+            assert "book_metadata" in result
+            metadata = result["book_metadata"]
+            assert metadata["isbn"] == "978-0123456789"
 
 
 @pytest.mark.asyncio
@@ -198,13 +205,15 @@ async def test_extract_from_text_without_isbn(mock_vlm_client, sample_book_text)
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
 
-        with patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]):
-            with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}):
-                result = await pipeline.extract_from_text(sample_book_text)
+        with (
+            patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
+            patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        ):
+            result = await pipeline.extract_from_text(sample_book_text)
 
-                assert "book_metadata" in result
-                metadata = result["book_metadata"]
-                assert metadata["isbn"] is None
+            assert "book_metadata" in result
+            metadata = result["book_metadata"]
+            assert metadata["isbn"] is None
 
 
 @pytest.mark.asyncio
@@ -213,15 +222,17 @@ async def test_extract_from_text_benchmark_mode(mock_vlm_client, sample_book_tex
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
 
-        with patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]):
-            with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}):
-                result = await pipeline.extract_from_text(sample_book_text, benchmark=True)
+        with (
+            patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
+            patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        ):
+            result = await pipeline.extract_from_text(sample_book_text, benchmark=True)
 
-                assert "result" in result
-                assert "debug" in result
-                assert "isbn_candidates" in result["debug"]
-                assert "llm_raw_output" in result["debug"]
-                assert "text_snippet" in result["debug"]
+            assert "result" in result
+            assert "debug" in result
+            assert "isbn_candidates" in result["debug"]
+            assert "llm_raw_output" in result["debug"]
+            assert "text_snippet" in result["debug"]
 
 
 @patch("bookextractor.vlm_client.VLMClient.get_instance")
@@ -242,13 +253,15 @@ async def test_process_pdf_invalid_json_fallback(mock_vlm_client, tmp_path):
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
 
-        with patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse:
+        with (
+            patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
+            patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
+            patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        ):
             mock_vparse.return_value = bad_vparse_response
-            with patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]):
-                with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}):
-                    result = await pipeline.process_pdf(str(pdf_path))
-                    # Should fallback to md_content since content_list parsing fails
-                    assert "book_metadata" in result
+            result = await pipeline.process_pdf(str(pdf_path))
+            # Should fallback to md_content since content_list parsing fails
+            assert "book_metadata" in result
 
 
 def test_calculate_confidence_with_data():
@@ -299,13 +312,15 @@ async def test_process_pdf_benchmark_mode(mock_vlm_client, sample_vparse_respons
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
 
-        with patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse:
+        with (
+            patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
+            patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
+            patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        ):
             mock_vparse.return_value = sample_vparse_response
-            with patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]):
-                with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}):
-                    result = await pipeline.process_pdf(str(pdf_path), benchmark=True)
-                    assert "result" in result
-                    assert "debug" in result
+            result = await pipeline.process_pdf(str(pdf_path), benchmark=True)
+            assert "result" in result
+            assert "debug" in result
 
 
 @pytest.mark.asyncio
@@ -371,12 +386,14 @@ async def test_extract_from_text_magazine_json_input(mock_vlm_client, tmp_path):
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
 
-        with patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]):
-            with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}):
-                result = await pipeline.process_text_file(str(json_input))
+        with (
+            patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
+            patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        ):
+            result = await pipeline.process_text_file(str(json_input))
 
-                assert "magazine_metadata" in result
-                assert result["magazine_metadata"]["magazine_name"] == "చందమామ"
+            assert "magazine_metadata" in result
+            assert result["magazine_metadata"]["magazine_name"] == "చందమామ"
 
 
 def test_detect_content_type():

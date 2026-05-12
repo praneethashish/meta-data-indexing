@@ -7,7 +7,10 @@ stages:
 
 variables:
   UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+  # Disable project installation for quality stages to save time
+  UV_NO_INSTALL_PROJECT: "1"
 
+# Global cache for uv and mypy
 cache:
   key:
     files:
@@ -15,20 +18,19 @@ cache:
   paths:
     - .cache/uv
     - .venv/
+    - .mypy_cache/
 
 .setup_uv: &setup_uv
-  image: python:3.10-slim
+  image: ghcr.io/astral-sh/uv:python3.10-bookworm-slim
   before_script:
-    - apt-get update && apt-get install -y curl git
-    - curl -LsSf https://astral.sh/uv/install.sh | sh
-    - source $HOME/.local/bin/env
+    - uv sync --frozen
 
 ruff-lint:
   <<: *setup_uv
   stage: lint
   script:
-    - uv sync --frozen --no-default-groups --group lint
     - uv run ruff check .
+    - uv run vulture bookextractor/
   only:
     changes:
       - "**/*.py"
@@ -40,7 +42,6 @@ ruff-format:
   <<: *setup_uv
   stage: format
   script:
-    - uv sync --frozen --no-default-groups --group lint
     - uv run ruff format --check .
   only:
     changes:
@@ -53,21 +54,7 @@ type-check:
   <<: *setup_uv
   stage: type-check
   script:
-    - uv sync --frozen --no-default-groups --group lint
     - uv run mypy bookextractor/
-  only:
-    changes:
-      - "**/*.py"
-      - ".gitlab-ci.yml"
-      - "pyproject.toml"
-      - "uv.lock"
-
-vulture-dead-code:
-  <<: *setup_uv
-  stage: lint
-  script:
-    - uv sync --frozen --no-default-groups --group lint
-    - uv run vulture bookextractor/
   only:
     changes:
       - "**/*.py"
@@ -78,6 +65,8 @@ vulture-dead-code:
 pytest:
   <<: *setup_uv
   stage: test
+  variables:
+    UV_NO_INSTALL_PROJECT: "0" # Re-enable for testing
   script:
     - uv sync --frozen --extra ml --group test
     - uv run pytest tests/ --cov=bookextractor --cov-report=term --cov-report=xml --cov-fail-under=90
