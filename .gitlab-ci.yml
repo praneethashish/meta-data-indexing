@@ -7,10 +7,9 @@ stages:
 
 variables:
   UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
-  # Disable project installation for quality stages to save time
+  # Ensures uv doesn't try to build the project wheel during linting
   UV_NO_INSTALL_PROJECT: "1"
 
-# Global cache for uv and mypy
 cache:
   key:
     files:
@@ -23,16 +22,16 @@ cache:
 .setup_uv: &setup_uv
   image: ghcr.io/astral-sh/uv:python3.10-bookworm-slim
   before_script:
-    - uv sync --frozen
+    - source $HOME/.local/bin/env
 
 ruff-lint:
   <<: *setup_uv
   stage: lint
   script:
-    - uv run ruff check .
-    - uv run vulture bookextractor/
+    - uv run --group lint ruff check .
+    - uv run --group lint vulture bookextractor/
   only:
-    changes:
+    changes: &changes_filter
       - "**/*.py"
       - ".gitlab-ci.yml"
       - "pyproject.toml"
@@ -42,41 +41,28 @@ ruff-format:
   <<: *setup_uv
   stage: format
   script:
-    - uv run ruff format --check .
+    - uv run --group lint ruff format --check .
   only:
-    changes:
-      - "**/*.py"
-      - ".gitlab-ci.yml"
-      - "pyproject.toml"
-      - "uv.lock"
+    changes: *changes_filter
 
 type-check:
   <<: *setup_uv
   stage: type-check
   script:
-    - uv run mypy bookextractor/
+    - uv run --group lint mypy bookextractor/
   only:
-    changes:
-      - "**/*.py"
-      - ".gitlab-ci.yml"
-      - "pyproject.toml"
-      - "uv.lock"
+    changes: *changes_filter
 
 pytest:
   <<: *setup_uv
   stage: test
   variables:
-    UV_NO_INSTALL_PROJECT: "0" # Re-enable for testing
+    UV_NO_INSTALL_PROJECT: "0"
   script:
-    - uv sync --frozen --extra ml --group test
-    - uv run pytest tests/ --cov=bookextractor --cov-report=term --cov-report=xml --cov-fail-under=90
+    - uv run --extra ml --group test pytest tests/ --cov=bookextractor --cov-report=term --cov-report=xml --cov-fail-under=90
   coverage: '/TOTAL.*\s+(\d+%)$/'
   only:
-    changes:
-      - "**/*.py"
-      - ".gitlab-ci.yml"
-      - "pyproject.toml"
-      - "uv.lock"
+    changes: *changes_filter
   artifacts:
     reports:
       coverage_report:
