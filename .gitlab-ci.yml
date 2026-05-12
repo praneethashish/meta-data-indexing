@@ -19,6 +19,7 @@ cache:
       - uv.lock
   paths:
     - .cache/uv
+    - .venv/
 
 .setup_uv: &setup_uv
   image: python:3.10-slim
@@ -36,7 +37,6 @@ ruff-lint:
   only:
     changes:
       - "**/*.py"
-  allow_failure: true
 
 ruff-format:
   <<: *setup_uv
@@ -47,7 +47,6 @@ ruff-format:
   only:
     changes:
       - "**/*.py"
-  allow_failure: true
 
 type-check:
   <<: *setup_uv
@@ -58,7 +57,6 @@ type-check:
   only:
     changes:
       - "**/*.py"
-  allow_failure: true
 
 vulture-dead-code:
   <<: *setup_uv
@@ -69,7 +67,6 @@ vulture-dead-code:
   only:
     changes:
       - "**/*.py"
-  allow_failure: true
 
 pytest:
   <<: *setup_uv
@@ -86,7 +83,6 @@ pytest:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
-  allow_failure: true
 
 docker-build:
   stage: build
