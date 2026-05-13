@@ -38,6 +38,7 @@ lint = [
     "vulture>=2.0",
     "types-requests",
     "types-psutil",
+    "pre-commit>=3.5.0",
 ]
 test = [
     "pytest>=7.0.0",
@@ -58,7 +59,7 @@ packages = ["bookextractor"]
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-exclude = [".git", ".venv", "__pycache__"]
+exclude = [".git", ".venv", "__pycache__", "bookextractor/vulture_whitelist.py"]
 
 [tool.ruff.lint]
 select = [
@@ -87,7 +88,7 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
-exclude = ["tests/"]
+exclude = ["tests/", "bookextractor/vulture_whitelist.py"]
 
 [tool.vulture]
 exclude = ["tests/"]

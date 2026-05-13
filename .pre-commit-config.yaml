@@ -26,8 +26,10 @@ repos:
     rev: v0.9.9
     hooks:
       - id: ruff
+        exclude: vulture_whitelist\.py$
         stages: [pre-commit]
       - id: ruff-format
+        exclude: vulture_whitelist\.py$
         args: ['--check']
         stages: [pre-commit]
 
@@ -43,7 +45,7 @@ repos:
     rev: v1.15.0
     hooks:
       - id: mypy
-        exclude: ^(tests/)
+        exclude: ^(tests/|bookextractor/vulture_whitelist\.py$)
         additional_dependencies: [
           "pydantic>=2.0.0",
           "fastapi>=0.100.0",
@@ -60,12 +62,12 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-        args: ["bookextractor/", "--min-confidence", "80"]
+        args: ["bookextractor/", "bookextractor/vulture_whitelist.py", "--min-confidence", "80"]
         stages: [pre-commit]
 
       - id: pytest-cov
         name: pytest coverage
-        entry: uv run pytest tests/ --cov=bookextractor --cov-report=term-missing --cov-fail-under=90
+        entry: uv run --group test pytest tests/ --cov=bookextractor --cov-report=term-missing --cov-fail-under=90
         language: system
         types: [python]
         pass_filenames: false

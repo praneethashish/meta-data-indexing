@@ -289,12 +289,45 @@ def test_get_pipeline_initialization():
 
     # Ensure it's reset
     main.pipeline = None
+    main._pipeline_load_llm = True
     with patch("bookextractor.main.ExtractionPipeline") as mock_class:
         p = main.get_pipeline()
         mock_class.assert_called_once()
         assert p is not None
         # Second call should not re-initialize
         main.get_pipeline()
+        assert mock_class.call_count == 1
+
+
+def test_get_pipeline_load_llm_false():
+    from bookextractor import main
+
+    main.pipeline = None
+    main._pipeline_load_llm = True
+    with patch("bookextractor.main.ExtractionPipeline") as mock_class:
+        p = main.get_pipeline(load_llm=False)
+        mock_class.assert_called_once_with(max_model_len=4096, load_llm=False)
+        assert p is not None
+
+
+def test_get_pipeline_resets_singleton_when_load_llm_changes():
+    from bookextractor import main
+
+    main.pipeline = None
+    main._pipeline_load_llm = True
+    with patch("bookextractor.main.ExtractionPipeline") as mock_class:
+        main.get_pipeline(load_llm=True)
+        assert mock_class.call_count == 1
+        mock_class.reset_mock()
+
+        main.get_pipeline(load_llm=False)
+        mock_class.assert_called_once_with(max_model_len=4096, load_llm=False)
+
+        mock_class.reset_mock()
+        main.get_pipeline(load_llm=False)
+        assert mock_class.call_count == 0
+
+        main.get_pipeline(load_llm=True)
         assert mock_class.call_count == 1
 
 

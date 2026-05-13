@@ -23,15 +23,18 @@ class OCRLanguage(str, Enum):
 app = FastAPI()
 cli_app = typer.Typer()
 pipeline = None
+_pipeline_load_llm = True
 ALLOWED_EXTENSIONS = (".pdf", ".md", ".json", ".txt", ".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")
 UPLOAD_DIR = os.getenv("BOOKEXTRACTOR_UPLOAD_DIR", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-def get_pipeline(max_model_len: int = 4096):
-    global pipeline
-    if pipeline is None:
-        pipeline = ExtractionPipeline(max_model_len=max_model_len)
+def get_pipeline(max_model_len: int = 4096, load_llm: bool = True):
+    global pipeline, _pipeline_load_llm
+    if pipeline is None or _pipeline_load_llm != load_llm:
+        pipeline = ExtractionPipeline(max_model_len=max_model_len, load_llm=load_llm)
+        _pipeline_load_llm = load_llm
     return pipeline
 
 
@@ -108,14 +111,15 @@ async def _extract_file(
     lang: OCRLanguage = OCRLanguage.ENGLISH,
     max_model_len: int = 4096,
 ) -> None:
-    p = get_pipeline(max_model_len=max_model_len)
     filename = input_file.lower()
+    is_image = filename.endswith(IMAGE_EXTENSIONS)
+    p = get_pipeline(max_model_len=max_model_len, load_llm=not is_image)
 
     if filename.endswith(".pdf"):
         result = await p.process_pdf(input_file, benchmark=benchmark, lang=lang.value)
     elif filename.endswith((".md", ".json", ".txt")):
         result = await p.process_text_file(input_file, benchmark=benchmark, lang=lang.value)
-    elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")):
+    elif is_image:
         result = await p.process_image(input_file, benchmark=benchmark)
     else:
         print(f"Error: Unsupported file type: {input_file}")
@@ -151,10 +155,11 @@ async def extract(
             buffer.write(await file.read())
 
         try:
-            p = get_pipeline()
+            is_image = filename.endswith(IMAGE_EXTENSIONS)
+            p = get_pipeline(load_llm=not is_image)
             if filename.endswith(".pdf"):
                 result = await p.process_pdf(temp_path, lang=lang.value)
-            elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")):
+            elif is_image:
                 result = await p.process_image(temp_path)
             else:
                 result = await p.process_text_file(temp_path, lang=lang.value)
