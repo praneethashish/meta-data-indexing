@@ -1,5 +1,5 @@
 import os
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -30,6 +30,6 @@ async def parse_pdf_via_vparse(file_path: str, lang: str = "en") -> dict[str, An
             try:
                 response = await client.post(VPARSE_API_URL, files=files, data=data, timeout=900.0)
                 response.raise_for_status()
-                return response.json()
+                return cast(dict[str, Any], response.json())
             except Exception as e:
                 raise RuntimeError(f"vParse API call failed: {e}") from e

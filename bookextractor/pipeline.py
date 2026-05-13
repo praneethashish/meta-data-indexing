@@ -2,8 +2,9 @@ import json
 import logging
 import os
 import re
+from contextlib import suppress
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from vllm import SamplingParams
 
@@ -29,8 +30,12 @@ DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "
 
 
 class ExtractionPipeline:
-    def __init__(self, model_id: str | None = None, max_model_len: int = 4096):
-        self.vlm_client = VLMClient.get_instance(model_id=model_id, max_model_len=max_model_len)
+    def __init__(self, model_id: str | None = None, max_model_len: int = 4096, load_llm: bool = True):
+        self.llm: Any = None
+        self.vlm_client: VLMClient | None = None
+        if load_llm:
+            self.vlm_client = VLMClient.get_instance(model_id=model_id, max_model_len=max_model_len)
+            self.llm = VLMClient._llm
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         # Call vParse OCR API with the selected language
@@ -50,10 +55,8 @@ class ExtractionPipeline:
         if isinstance(result_data, dict):
             content_list = result_data.get("content_list", [])
             if isinstance(content_list, str):
-                try:
+                with suppress(json.JSONDecodeError, TypeError):
                     content_list = json.loads(content_list)
-                except (json.JSONDecodeError, TypeError):
-                    pass
             if isinstance(content_list, list):
                 full_text = "\n".join(
                     item.get("text", "") for item in content_list if isinstance(item, dict) and item.get("text")
@@ -68,7 +71,7 @@ class ExtractionPipeline:
         full_text = re.sub(r"\n{3,}", "\n\n", full_text)  # Collapse whitespace
         full_text = full_text.strip()
 
-        return await self.extract_from_text(full_text, benchmark=benchmark)
+        return await self.extract_from_text(full_text, benchmark=benchmark, lang=lang)
 
     async def process_image(self, image_path: str, benchmark: bool = False) -> dict[str, Any]:
         metadata_dict = extract_image_metadata(image_path)
@@ -76,25 +79,28 @@ class ExtractionPipeline:
         result = ExtractionResult(image_metadata=img_meta)
 
         if benchmark:
-            return BenchmarkResult(result=result).dict()
-        return result.dict()
+            return BenchmarkResult(result=result).model_dump()
+        return result.model_dump()
 
-    async def process_text_file(self, file_path: str, benchmark: bool = False) -> dict[str, Any]:
+    async def process_text_file(self, file_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         with open(file_path, encoding="utf-8") as f:
             content = f.read()
+
+        if not content.strip():
+            return ExtractionResult().model_dump()
 
         # Check if it's a structured JSON with transcription (already OCR'd content)
         try:
             data = json.loads(content)
             if isinstance(data, dict) and "transcription" in data:
-                # Use the transcription field directly
-                text = data.get("transcription", "")
-                lang = data.get("language", "te")
-                return await self.extract_from_text(text, benchmark=benchmark, lang=lang)
+                transcription = data.get("transcription")
+                if transcription is None:
+                    transcription = json.dumps(data)
+                detected_lang = data.get("language", lang)
+                return await self.extract_from_text(str(transcription), benchmark=benchmark, lang=detected_lang)
         except (json.JSONDecodeError, TypeError):
             pass
-
-        return await self.extract_from_text(content, benchmark=benchmark)
+        return await self.extract_from_text(content, benchmark=benchmark, lang=lang)
 
     def _detect_content_type(self, text: str) -> str:
         """Detect if content is a magazine/periodical or book."""
@@ -173,8 +179,8 @@ class ExtractionPipeline:
         debug_info = {"isbn_candidates": isbns, "llm_raw_output": llm_result, "text_snippet": text[:500]}
 
         if benchmark:
-            return BenchmarkResult(result=result, debug=debug_info).dict()
-        return result.dict()
+            return BenchmarkResult(result=result, debug=debug_info).model_dump()
+        return result.model_dump()
 
     async def _extract_magazine_metadata(self, text: str, benchmark: bool = False, lang: str = "te") -> dict[str, Any]:
         # LLM Semantic Extraction for magazines
@@ -205,21 +211,25 @@ class ExtractionPipeline:
         debug_info = {"llm_raw_output": llm_result, "text_snippet": text[:500]}
 
         if benchmark:
-            return BenchmarkResult(result=result, debug=debug_info).dict()
-        return result.dict()
+            return BenchmarkResult(result=result, debug=debug_info).model_dump()
+        return result.model_dump()
 
     def extract_magazine_semantic_fields(self, text: str, lang: str = "te") -> dict[str, Any]:
-        _ = lang
+        lang_label = {
+            "te": "Telugu (తెలుగు)",
+            "en": "English",
+            "hi": "Hindi (हिन्दी)",
+        }.get(lang, "Telugu (తెలుగు) and English")
         prompt = f"""Extract magazine metadata from the OCR text below.
-The text is in Telugu (తెలుగు) and English.
+The text is primarily in {lang_label}.
 
 Return ONLY a valid JSON object with these fields (use null for unknown fields):
-- "magazine_name": Name of the magazine (e.g., "చందమామ", "Chandamama")
-- "editor": Editor name (look for "సంపాదకుడు", "నంచాలకుడు", "Editor")
-- "publisher": Publisher name (look for "ప్రచురణ", "ఆఫీసు", "Office")
-- "issue_date": Issue month and year (e.g., "August 1948", "ఆగస్టు 1948")
-- "issue_number": Issue/volume number (look for "సంచిక", "నంపుటి", "Vol.", "No.")
-- "price": Price (look for "ఖరీదు", "రేటు", "Price", "Rs.")
+- "magazine_name": Name of the magazine
+- "editor": Editor name
+- "publisher": Publisher name
+- "issue_date": Issue month and year
+- "issue_number": Issue/volume number
+- "price": Price
 
 Example:
 {{"magazine_name": "చందమామ", "editor": "చక్రపాతి", "issue_date": "August 1948", "issue_number": "2"}}
@@ -229,7 +239,12 @@ OCR Text:
 
 JSON:
 """
+        if self.vlm_client is None:
+            return {}
+        text_out = ""
         try:
+            if self.vlm_client is None:
+                return {}
             sampling_params = SamplingParams(temperature=0.1, max_tokens=512, stop=["```"])
             outputs = self.vlm_client.generate([prompt], sampling_params)
             text_out = outputs[0].outputs[0].text.strip()
@@ -238,7 +253,7 @@ JSON:
             if start != -1 and end != -1:
                 raw = text_out[start:end]
                 logger.info(f"Raw LLM magazine output: {raw}")
-                result = json.loads(raw)
+                result = cast(dict[str, Any], json.loads(raw))
                 return result
             else:
                 logger.warning(f"No JSON found in LLM output: {text_out}")
@@ -260,7 +275,7 @@ The text below was extracted via OCR from scanned book pages and may contain:
 Extract the following fields and return ONLY a valid JSON object:
 - "title": The book's title (look for prominent text, large headings, or text on the title page)
 - "author": The author's full name (look near "By", "©", "Written by", or Telugu/Hindi equivalents)
-- "publisher": The publisher's name (look near "Published by", "ప్రచురణ", "प्रकाशक", or publishing house names)
+- "publisher": The publisher's name (look near "Published by", "ప్రచురణ", "प्रकाशక", or publishing house names)
 - "published_date": The earliest publication date (look for years like 1996, 2004 near
   "First Edition", "ముద్రణ", "संस्करण")
 
@@ -272,18 +287,20 @@ Rules:
 - Prefer the original/first edition date over reprint dates.
 
 OCR Text:
-{text[:3000]}
+{text[:15000]}
 
 JSON:
 """
         try:
+            if self.vlm_client is None:
+                return {}
             sampling_params = SamplingParams(temperature=0.7, max_tokens=256, stop=["```"])
             outputs = self.vlm_client.generate([prompt], sampling_params)
             text_out = outputs[0].outputs[0].text.strip()
             start = text_out.find("{")
             end = text_out.rfind("}") + 1
             if start != -1 and end != -1:
-                return json.loads(text_out[start:end])
+                return cast(dict[str, Any], json.loads(text_out[start:end]))
         except Exception:  # nosec
             pass
         return {}

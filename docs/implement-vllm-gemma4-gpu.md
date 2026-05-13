@@ -5,6 +5,7 @@
 **Type:** Implementation Task
 **Priority:** High
 **Phase:** Phase 2 - Multimedia & VLM Enhancement
+**Status:** ✅ COMPLETE
 
 ## Summary
 
@@ -30,16 +31,16 @@ Replace `llama-cpp-python` with `vllm` for GPU-accelerated inference using `goog
 
 ### In Scope
 
-- [ ] Replace `llama-cpp` import with `vllm` in `pipeline.py`
-- [ ] Update `ExtractionPipeline.__init__` to use `vllm.LLM`
-- [ ] Update `extract_semantic_fields` to use vLLM's `SamplingParams` and `.generate()` API
-- [ ] Remove GGUF download logic (`_download_file_if_missing`, `resolve_model_paths`)
-- [ ] Update `pyproject.toml` dependencies
-- [ ] Update `.env.example` with new vLLM environment variables
-- [ ] Update `Dockerfile.bookextractor` with CUDA base image
-- [ ] Update `docker-compose.yml` with GPU resources and HF cache volume mount
-- [ ] Update `tests/test_pipeline.py` mocks for vLLM API
-- [ ] Update `scripts/setup_models.py` to remove Gemma download
+- [x] Replace `llama-cpp` import with `vllm` in `pipeline.py`
+- [x] Update `ExtractionPipeline.__init__` to use `vllm.LLM`
+- [x] Update `extract_semantic_fields` to use vLLM's `SamplingParams` and `.generate()` API
+- [x] Remove GGUF download logic (`_download_file_if_missing`, `resolve_model_paths`)
+- [x] Update `pyproject.toml` dependencies
+- [x] Update `.env.example` with new vLLM environment variables
+- [x] Update `Dockerfile.bookextractor` with CUDA base image
+- [x] Update `docker-compose.yml` with GPU resources and HF cache volume mount
+- [x] Update `tests/test_pipeline.py` mocks for vLLM API
+- [x] Update `scripts/setup_models.py` for HuggingFace download
 
 ### Not In Scope (Future Tasks)
 

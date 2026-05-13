@@ -8,36 +8,54 @@ authors = [
 dependencies = [
     "fastapi>=0.100.0",
     "uvicorn>=0.22.0",
-    "pymupdf>=1.22.0",
-    "easyocr>=1.7.0",
-    "pillow>=9.5.0",
     "pydantic>=2.0.0",
     "httpx>=0.24.0",
-    "vllm>=0.8.0",
-    "huggingface_hub>=0.21.0",
     "typer>=0.9.0",
     "python-multipart>=0.0.6",
-    "numpy<2",
-    "opencv-python-headless>=4.7.0",
-    "nvidia-ml-py>=12.535.133",
     "psutil>=5.9.0",
     "questionary>=2.0.0",
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.0.0",
-    "pre-commit>=3.0.0",
-    "vulture>=2.0",
     "requests>=2.31.0",
-    "piexif>=1.1.3",
-    "pytest-httpx>=0.36.2",
-    "pytest-mock>=1.15.0",
-    "pytest-asyncio>=0.21.0",
+    "celery>=5.3.0",
+    "redis>=5.0.0",
 ]
 requires-python = ">=3.10"
 
+[project.optional-dependencies]
+ml = [
+    "vllm>=0.8.0",
+    "easyocr>=1.7.0",
+    "pymupdf>=1.22.0",
+    "pillow>=9.5.0",
+    "huggingface_hub>=0.21.0",
+    "numpy<2",
+    "opencv-python-headless>=4.7.0",
+    "nvidia-ml-py>=12.535.133",
+    "piexif>=1.1.3",
+]
+
 [project.scripts]
 bookextractor = "bookextractor.main:cli_app"
+
+[dependency-groups]
+lint = [
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "vulture>=2.0",
+    "types-requests",
+    "types-psutil",
+    "types-pillow",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-httpx>=0.36.2",
+    "pytest-mock>=1.15.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-httpx>=0.36.2",
+    "celery>=5.3.0",
+    "redis>=5.0.0",
+    "flower>=2.0.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -49,6 +67,7 @@ packages = ["bookextractor"]
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+exclude = [".git", ".venv", "__pycache__"]
 
 [tool.ruff.lint]
 select = [
@@ -56,12 +75,16 @@ select = [
     "W",   # pycodestyle warnings
     "F",   # pyflakes
     "I",   # isort
-    "C",   # flake8-comprehensions
     "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
     "UP",  # pyupgrade
     "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
 ]
-ignore = []
+ignore = [
+    "E501",  # line too long
+    "B008",  # function call in defaults
+]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -69,10 +92,16 @@ indent-style = "space"
 
 [tool.mypy]
 python_version = "3.10"
-strict = false
-ignore_missing_imports = true
-check_untyped_defs = true
+warn_return_any = true
+warn_unused_configs = true
 disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = ["tests/"]
+
+[tool.vulture]
+exclude = ["tests/"]
+min_confidence = 80
+paths = ["bookextractor/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -83,6 +112,3 @@ asyncio_mode = "auto"
 [tool.bandit]
 exclude_dirs = ["tests"]
 skips = ["B101"]
-
-[dependency-groups]
-dev = []

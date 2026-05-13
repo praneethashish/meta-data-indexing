@@ -18,7 +18,7 @@ def test_hardware_info_command():
 def test_extract_unsupported_file(tmp_path):
     # Mock VLMClient to avoid actual initialization
     with patch("bookextractor.pipeline.VLMClient.get_instance"):
-        bad_file = tmp_path / "test.txt"
+        bad_file = tmp_path / "test.docx"
         bad_file.write_text("hello")
         result = runner.invoke(cli_app, ["extract", str(bad_file), "out.json"])
         # Should fail due to unsupported file type
@@ -33,7 +33,7 @@ def test_api_command():
 
 def test_api_extract_unsupported_type():
     with patch("bookextractor.main.get_pipeline"):
-        response = client.post("/extract", files={"file": ("test.txt", b"hello", "text/plain")})
+        response = client.post("/extract", files={"file": ("test.docx", b"hello", "application/octet-stream")})
         assert response.status_code == 400
 
 

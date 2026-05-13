@@ -1,8 +1,13 @@
 import logging
 import os
-from typing import Any
+from typing import Any, cast
 
-from vllm import LLM, SamplingParams
+try:
+    from vllm import LLM, SamplingParams
+except ImportError:
+    # Fallback for linting/testing in slim environments
+    LLM = Any  # type: ignore
+    SamplingParams = Any  # type: ignore
 
 from .hardware import get_vllm_config
 
@@ -16,14 +21,16 @@ class VLMClient:
     """
 
     _instance: "VLMClient | None" = None
-    _llm: LLM | None = None
+    _llm: Any = None
 
     def __init__(self, model_id: str | None = None, max_model_len: int = 4096):
         """
         Initialize the VLMClient. Note: Use get_instance() for shared LLM resource.
         """
         if VLMClient._llm is None:
-            self.model_id = model_id or os.getenv("VLLM_MODEL") or self._detect_cached_model()
+            self.model_id = (
+                model_id or os.getenv("VLLM_MODEL_ID") or os.getenv("VLLM_MODEL") or self._detect_cached_model()
+            )
             self.max_model_len = max_model_len
             self._initialize_llm()
 
@@ -79,7 +86,7 @@ class VLMClient:
             trust_remote_code=True,
         )
 
-    def generate(self, prompts: list[str], sampling_params: SamplingParams | None = None) -> list[Any]:
+    def generate(self, prompts: list[str], sampling_params: Any = None) -> list[Any]:
         """Generate text from one or more prompts."""
         if sampling_params is None:
             sampling_params = SamplingParams(temperature=0.7, max_tokens=512)
@@ -87,7 +94,7 @@ class VLMClient:
         if VLMClient._llm is None:
             raise RuntimeError("vLLM engine not initialized")
 
-        return VLMClient._llm.generate(prompts, sampling_params)
+        return cast(list[Any], VLMClient._llm.generate(prompts, sampling_params))
 
     async def describe_image(self, image_path: str) -> dict[str, Any]:
         """
