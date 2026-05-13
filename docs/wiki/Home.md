@@ -17,8 +17,8 @@ Welcome to the documentation for the multi-phase implementation of the metadata 
 | Phase                                  | Status         | Description        | Key Deliverables                                                            |
 | -------------------------------------- | -------------- | ------------------ | --------------------------------------------------------------------------- |
 | [Phase 1](Phase-1-Foundation)          | ✅ COMPLETE    | Foundation         | Format Router, PDF/Text/Image pipelines, Docker                             |
-| [Phase 2](Phase-2-Multimedia-VLM)      | 🚧 IN PROGRESS | Multimedia & VLM   | Audio/Video, Pre-OCR regex, Gemma-4 vLLM VLM, OCR format, Celery foundation |
-| [Phase 3](Phase-3-Async-Processing)    | 📋 FUTURE      | Async Processing   | Queue activation, distributed workers                                       |
+| [Phase 2](Phase-2-Multimedia-VLM)      | ✅ COMPLETE    | Multimedia & VLM   | vLLM engine, hardware detection, model management, magazine extraction      |
+| [Phase 3](Phase-3-Async-Processing)    | ✅ COMPLETE    | Async Processing   | Celery + Redis, dual-queue workers, async API endpoints                     |
 | [Phase 4](Phase-4-Scale-Optimization)  | 📋 FUTURE      | Scale Optimization | VLM batching, caching, Kubernetes                                           |
 | [Phase N](Phase-N-Future-Enhancements) | 📋 FUTURE      | Enhancements       | Streaming OCR, multi-tenant, RAG pipeline                                   |
 
@@ -35,15 +35,15 @@ Welcome to the documentation for the multi-phase implementation of the metadata 
 ### Phase Details
 
 - [Phase 1: Foundation](Phase-1-Foundation) - Completed foundation features
-- [Phase 2: Multimedia & VLM](Phase-2-Multimedia-VLM) - Current implementation phase
-- [Phase 3: Async Processing](Phase-3-Async-Processing) - Future async architecture
+- [Phase 2: Multimedia & VLM](Phase-2-Multimedia-VLM) - vLLM engine, hardware detection
+- [Phase 3: Async Processing](Phase-3-Async-Processing) - Celery + Redis workers
 - [Phase 4: Scale Optimization](Phase-4-Scale-Optimization) - Future optimizations
 - [Phase N: Future Enhancements](Phase-N-Future-Enhancements) - Planned features
 
 ### Technical Docs
 
 - [VParse Integration](https://github.com/suryamanoj4/mineru-dots) - External VParse repository
-- [Gemma-4 Model](https://huggingface.co/google/gemma-4-E4B-it) - Unified LLM/VLM on HuggingFace
+- [Supported Models](../../README.md#supported-models) - Qwen, Gemma models on HuggingFace
 
 ---
 
@@ -52,12 +52,12 @@ Welcome to the documentation for the multi-phase implementation of the metadata 
 | Component            | Technology                      | Purpose                               |
 | -------------------- | ------------------------------- | ------------------------------------- |
 | **API Framework**    | FastAPI                         | REST API endpoints                    |
+| **CLI**              | Typer                           | Command-line interface                |
 | **OCR Engine**       | VParse (mineru-dots)            | PDF and document OCR                  |
-| **LLM/VLM**          | Gemma-4 (google/gemma-4-E4B-it) | Text semantic + Image understanding   |
-| **Inference Engine** | vLLM + PyTorch                  | GPU-accelerated unified LLM inference |
+| **LLM/VLM**          | Qwen2.5-VL, Qwen3-VL, Gemma 4   | Text semantic extraction              |
+| **Inference Engine** | vLLM + PyTorch                  | GPU-accelerated LLM inference         |
 | **ISBN Lookup**      | OpenLibrary API                 | Book metadata enrichment              |
-| **Audio/Video**      | ffprobe                         | Media metadata extraction             |
-| **Task Queue**       | Celery + Redis                  | Async processing foundation           |
+| **Task Queue**       | Celery + Redis                  | Async background processing           |
 | **Container**        | Docker + Docker Compose         | Deployment                            |
 
 ---
@@ -66,19 +66,17 @@ Welcome to the documentation for the multi-phase implementation of the metadata 
 
 | File Type                | Extraction Method                    | LLM Used? |
 | ------------------------ | ------------------------------------ | --------- |
-| PDF                      | VParse OCR (pipeline) + Gemma-4 vLLM | ✅        |
-| Text (.md, .json)        | Direct LLM processing                | ✅        |
-| Image (.jpg, .png, etc.) | EXIF + **Gemma-4 vLLM**              | ✅ Yes    |
-| Audio (.mp3, .wav, .m4a) | ffprobe                              | ❌        |
-| Video (.mp4, .mkv)       | ffprobe                              | ❌        |
+| PDF                      | VParse OCR + LLM extraction          | ✅        |
+| Text (.md, .json, .txt)  | Direct LLM processing                | ✅        |
+| Image (.jpg, .png, etc.) | EXIF + PIL metadata extraction       | ❌        |
 
 ---
 
 ## Getting Started
 
-1. **For Development:** See [Phase 1](Phase-1-Foundation) for current implementation
-2. **For Implementation:** See [Phase 2](Phase-2-Multimedia-VLM) for current work
-3. **For Architecture:** See [Architecture](Architecture) for system design
+1. **For Development:** See [Phase 1](Phase-1-Foundation) for implemented features
+2. **For Architecture:** See [Architecture](Architecture) for system design
+3. **For Docker:** See [README](../../README.md#docker) for deployment guide
 
 ---
 
@@ -93,4 +91,4 @@ When implementing new phases:
 
 ---
 
-_Last updated: Phase 2 implementation in progress_
+_Last updated: Phase 3 (Celery + Redis) complete_

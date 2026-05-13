@@ -37,5 +37,5 @@ Create a unified extraction endpoint (`/extract`) and CLI that routes files to s
 
 ## Out of Scope
 
-- Celery/Redis asynchronous task management (Phase 2).
-- Automatic deployment of the mineru-dots container.
+- Audio/video metadata extraction (future phase)
+- Automatic deployment of the mineru-dots container

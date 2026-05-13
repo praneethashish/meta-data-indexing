@@ -1,185 +1,223 @@
-# BookExtractor 📚
+# BookExtractor
 
-A production-ready Python package for extracting structured metadata from scanned Telugu, Hindi, and English PDFs.
+A production-ready Python package for extracting structured metadata from scanned Telugu, Hindi, and English books, magazines, and images.
 
-## 🚀 Overview
+## Overview
 
-`bookextractor` is designed for high-accuracy metadata extraction from noisy, layout-agnostic scans. It uses a multi-stage pipeline combining adaptive region extraction, multilingual OCR, and a local Vision Language Model (Qwen2.5-VL) to ensure validation-first results.
+`bookextractor` uses a multi-stage pipeline combining vParse OCR, local VLM inference (vLLM), and rule-based validation to extract structured metadata from noisy, layout-agnostic scans. Supports both synchronous CLI and asynchronous API with Celery/Redis background processing.
 
-## ✨ Key Features
+## Key Features
 
-- **Adaptive Region Extraction**: Automatically identifies and crops high-signal areas (ISBN, Publisher info).
-- **Multilingual Support**: Parallel OCR processing for English, Hindi, and Telugu.
-- **Local VLM Integration**: Uses `Qwen/Qwen2.5-VL-7B-Instruct` via vLLM for semantic field extraction without data leaving your machine.
-- **Deterministic Validation**: Strict ISBN checksum verification; zero hallucinations for rigid fields.
-- **Multi-Source Evidence**: Merges candidates across multiple pages and performs external API lookups (Open Library).
+- **Multi-format support**: PDF, images (JPG, PNG, WebP, TIFF), text files (MD, JSON, TXT)
+- **vParse OCR integration**: Multilingual OCR via mineru-dots API (English, Telugu, Hindi)
+- **Local VLM inference**: Qwen2.5-VL, Qwen3-VL, Gemma 4, and more via vLLM — data never leaves your machine
+- **Async task queue**: Celery + Redis for background processing with GPU/CPU worker separation
+- **Auto hardware detection**: Optimizes vLLM config for NVIDIA GPU, TPU, Apple Silicon, or CPU
+- **Magazine detection**: Auto-detects magazine vs book content with specialized extraction prompts
+- **ISBN validation**: Regex extraction + checksum validation + Open Library API lookup
+- **Model management**: Interactive CLI for downloading, listing, and removing cached models
 
-## 🛠 Installation
+## Installation
 
 Requires **Python 3.10+**.
 
 ```bash
-# Clone the repository
 git clone <your-repo-url>
-cd bookextractor
+cd Meta-Data-Indexing
 
 # Install dependencies and package
 uv pip install -e .
 
-# Set up Git hooks (Mandatory for contributors)
+# Set up Git hooks (mandatory for contributors)
 uv run pre-commit install
 ```
 
-## 🛠 Development
-
-This project uses the standard `pre-commit` framework for validation.
-
-### Git Hooks
-
-The following hooks are configured via `.pre-commit-config.yaml`:
-- **Commitizen**: Enforces conventional commit messages.
-- **Ruff**: Linting and formatting.
-- **Bandit**: Security checks.
-- **Mypy**: Static type checking.
-- **Vulture**: Dead code detection.
-- **Pytest**: Full test suite with coverage enforcement.
-
-To manually install or refresh the hooks:
-```bash
-uv run pre-commit install
-```
-
-### Manual Validation
-
-You can run the full suite of hooks manually at any time:
-```bash
-uv run pre-commit run --all-files
-```
-
-## 📖 Usage
+## Usage
 
 ### CLI
 
-The CLI uses explicit subcommands for all operations.
-
-Extract metadata from a PDF/image to JSON:
-
 ```bash
+# Extract metadata from a file
 uv run bookextractor extract input.pdf output.json
-```
 
-Use a specific OCR language for PDFs:
-
-```bash
+# Specify OCR language
 uv run bookextractor extract input.pdf output.json --lang te
 uv run bookextractor extract input.pdf output.json --lang devanagari
+
+# Benchmark mode (includes debug info)
+uv run bookextractor extract input.pdf output.json --benchmark
+
+# Reduce VRAM usage
+uv run bookextractor extract input.pdf output.json --max-model-len 2048
 ```
 
-Display detected hardware and optimized vLLM configuration:
+### Model Management
+
+```bash
+# List available models and cache status
+uv run bookextractor model list
+
+# Interactively download models
+uv run bookextractor model download
+
+# Remove a cached model
+uv run bookextractor model remove <model-id>
+
+# Show cache disk usage
+uv run bookextractor model cache
+```
+
+### Hardware Detection
 
 ```bash
 uv run bookextractor hardware-info
 ```
 
-Enable benchmark mode for debug info:
-
-```bash
-uv run bookextractor extract input.pdf output.json --benchmark
-```
-
-### Automatic Hardware Optimization
-
-`bookextractor` automatically detects your hardware (NVIDIA GPU, TPU, Apple Silicon, or CPU) and configures vLLM parameters (`dtype`, `tensor_parallel_size`, `gpu_memory_utilization`) for optimal performance and compatibility.
-
-#### Environment Variable Overrides
-
-If needed, you can manually override the automatic detection:
-
-| Variable                      | Description                                   | Default                     |
-| ----------------------------- | --------------------------------------------- | --------------------------- |
-| `VLLM_MODEL`                  | HuggingFace model ID                          | `Qwen/Qwen2.5-VL-7B-Instruct` |
-| `VLLM_DEVICE`                 | Target device: `cuda`, `tpu`, `mps`, or `cpu` | Auto-detected               |
-| `VLLM_DTYPE`                  | Model precision: `bfloat16`, `float16`, etc.  | Auto-optimized              |
-| `VLLM_GPU_MEMORY_UTILIZATION` | GPU memory fraction (0.0-1.0)                 | Auto-optimized              |
-| `VLLM_TENSOR_PARALLEL_SIZE`   | Number of GPUs to use (or `auto`)             | Auto-optimized              |
-
-**Note:** Automatic detection handles low-memory GPUs (like Tesla T4) by automatically switching to `float16` and lower memory utilization to prevent OOM errors.
-
 ### API (FastAPI)
 
-Start the web server:
-
 ```bash
+# Start the web server
 uv run bookextractor api
 uv run bookextractor api --host 0.0.0.0 --port 8000
 ```
 
-- **Swagger Docs**: `http://localhost:8000/docs`
-- **Health Check**: `GET /health`
-- **Extract**: `POST /extract` (Multipart file upload)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/extract` | POST | Synchronous extraction |
+| `/extract/async` | POST | Submit async job, returns `job_id` |
+| `/jobs/{job_id}` | GET | Poll job status/result |
 
-## 🐳 Docker Support
+**Swagger docs**: `http://localhost:8000/docs`
 
-The project runs using Docker Compose. By default, only **BookExtractor** and its **model-downloader** are started. The VParse (MinerU) OCR API service is optional and is pulled directly from the official upstream repository on demand via Docker Compose profiles.
+### Celery Worker
 
-### Quick Start (Metadata Indexing Only)
+```bash
+# Start a worker for a specific queue
+uv run bookextractor worker --queue vlm_queue --concurrency 2
+uv run bookextractor worker --queue default_queue --concurrency 8
+```
 
-To start only the BookExtractor service and download the Gemma LLM:
+## Docker
+
+### Quick Start
 
 ```bash
 docker compose up --build -d
 ```
 
-This builds the BookExtractor container and starts the `model-downloader` to fetch the Gemma model into a shared volume.
+This starts:
+- **bookextractor** — FastAPI service (port 8000)
+- **redis** — Message broker and result backend (port 6379)
+- **worker-gpu** — GPU worker for PDF/text extraction (vlm_queue)
+- **worker-cpu** — CPU worker for image extraction (default_queue)
+- **model-downloader** — Downloads the selected model to shared cache
 
-### Running with VParse OCR Backends
-
-If you need the OCR capabilities, you can include VParse by specifying a **Docker profile**. When a VParse profile is specified, Docker Compose automatically clones the MinerU repository from Git and builds the required mode without needing local Dockerfiles.
-
-Available profiles for VParse:
-
-- `pipeline`: Multi-model, multilingual OCR using Paddle (CPU/GPU)
-- `vlm`: Vision-language model for OCR (GPU recommended)
-- `hybrid`: Combined pipeline + VLM
-
-**Example: Start BookExtractor with VParse Pipeline Mode**
+### Select a Model
 
 ```bash
-docker compose --profile pipeline up --build -d
+VLLM_MODEL_ID=google/gemma-4-E4B-it docker compose up --build -d
 ```
 
-| Service         | Container Port | Host Port | Description                     |
-| --------------- | -------------- | --------- | ------------------------------- |
-| `bookextractor` | 8000           | **8000**  | BookExtractor FastAPI service   |
-| `vparse`        | 8000           | **9000**  | VParse (MinerU) OCR API service |
+### VParse OCR (Optional)
+
+```bash
+# Pipeline mode (CPU/GPU)
+docker compose --profile pipeline up --build -d
+
+# VLM mode (GPU recommended)
+docker compose --profile vlm up --build -d
+
+# Hybrid mode
+docker compose --profile hybrid up --build -d
+```
+
+| Service | Host Port | Description |
+|---------|-----------|-------------|
+| `bookextractor` | 8000 | FastAPI + LLM |
+| `redis` | 6379 | Message broker |
+| `vparse` | 9000 | OCR API (optional) |
 
 ### Model Persistence
 
-Models (both Gemma LLM and VParse OCR weights) are stored in a Docker named volume `models`. They are downloaded by the `model-downloader` service on first run and reused across container restarts — no re-download on rebuild. You can monitor the download progress by checking the logs:
+Models are stored in `~/.cache/huggingface` on the host and mounted into all containers. They persist across restarts and rebuilds.
 
 ```bash
 docker compose logs -f model-downloader
 ```
 
-## 🏗 Architecture
+## Architecture
 
-1.  **Smart Selection**: Analyzes the first 7 pages (where metadata usually lives).
-2.  **Adaptive Cropping**: Searches for keywords (ISBN, Edition) to create high-probability crops.
-3.  **OCR Pass**: Dual-pass EasyOCR (English+Telugu, English+Hindi).
-4.  **ISBN Validation**: Regex + Checksum (Modulo 10/11).
-5.  **Semantic Extraction**: Qwen2.5-VL-7B via vLLM processes OCR text for Title, Author, and Publisher.
-6.  **External Verification**: Valid ISBNs are checked against Open Library API.
-7.  **Merge & Score**: Field-wise merging with confidence scoring.
+```
+Client → FastAPI → Redis Broker → Celery Workers
+                          ├── worker-gpu (vlm_queue) → vLLM + vParse
+                          └── worker-cpu (default_queue) → PIL + piexif
+```
 
-## 🤝 GitLab / CI Standards
+### Extraction Pipeline
 
-This project follows professional Python standards:
+1. **PDF**: vParse OCR → text cleaning → content type detection → LLM extraction → ISBN validation → Open Library lookup → confidence scoring
+2. **Image**: PIL metadata extraction → EXIF parsing (camera, GPS, date, lens, DPI)
+3. **Text/JSON**: Direct LLM semantic extraction (supports pre-OCR'd JSON with `transcription` field)
 
-- **Linting**: Complies with `ruff` standards.
-- **Packaging**: Uses `pyproject.toml` (PEP 621).
-- **Type Safety**: Pydantic v2 models for all data structures.
-- **Environment**: Optimized for `uv` or `pip`.
+### Queue Routing
 
-## 📄 License
+| File Type | Queue | Worker | LLM |
+|-----------|-------|--------|-----|
+| PDF | `vlm_queue` | worker-gpu | Yes |
+| Text/JSON/MD | `vlm_queue` | worker-gpu | Yes |
+| Images | `default_queue` | worker-cpu | No |
+
+### Supported Models
+
+| Model | Type | Min VRAM |
+|-------|------|----------|
+| Qwen/Qwen2.5-VL-7B-Instruct | Vision | 16 GB |
+| Qwen/Qwen3-VL-30B-A3B-Instruct | Vision (MoE) | 6 GB |
+| Qwen/Qwen3.5-9B | Text | 10 GB |
+| google/gemma-3-27b-it | Text | 28 GB |
+| google/gemma-4-31b-it | Text | 32 GB |
+| google/gemma-4-E4B-it | Text | 8 GB |
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VLLM_MODEL_ID` | HuggingFace model ID | `Qwen/Qwen2.5-VL-7B-Instruct` |
+| `VPARSE_API_URL` | vParse OCR API URL | `http://localhost:8000/file_parse` |
+| `CELERY_BROKER_URL` | Redis broker URL | `redis://localhost:6379/0` |
+| `CELERY_RESULT_BACKEND` | Redis result backend | `redis://localhost:6379/0` |
+| `BOOKEXTRACTOR_UPLOAD_DIR` | Upload directory | `uploads` |
+| `VLLM_DEVICE` | Target device: cuda, tpu, mps, cpu | Auto-detected |
+| `VLLM_DTYPE` | Model precision | Auto-optimized |
+| `VLLM_GPU_MEMORY_UTILIZATION` | GPU memory fraction (0.0-1.0) | Auto-optimized |
+| `VLLM_TENSOR_PARALLEL_SIZE` | Number of GPUs (or `auto`) | Auto-optimized |
+
+## Development
+
+### Git Hooks
+
+Configured via `.pre-commit-config.yaml`:
+- **Commitizen**: Conventional commit messages
+- **Ruff**: Linting and formatting
+- **Bandit**: Security checks
+- **Mypy**: Static type checking
+- **Vulture**: Dead code detection
+- **Pytest**: Full test suite with coverage (≥90%)
+
+```bash
+uv run pre-commit run --all-files
+```
+
+### CI/CD
+
+GitLab CI pipeline (`.gitlab-ci.yml`):
+1. **lint**: ruff, mypy, vulture
+2. **test**: pytest with coverage report
+3. **build**: Docker image (main branch only)
+
+## License
 
 MIT License. See `LICENSE` for details.

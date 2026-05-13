@@ -3,80 +3,78 @@
 ## System Overview
 
 ```
-                    ┌─────────────────────────────────────────────────────────────┐
-                    │                      API Layer (FastAPI)                     │
-                    │                                                                  │
-                    │   Endpoints:                                                     │
-                    │   - POST /extract          - Submit single extraction           │
-                    │   - POST /extract/async    - Submit async job                  │
-                    │   - POST /extract/batch    - Submit batch job                  │
-                    │   - GET  /jobs/{id}        - Get job status                    │
-                    │   - GET  /batch/{id}       - Get batch status                  │
-                    │   - GET  /health           - Health check                      │
-                    └─────────────────────────────────────────────────────────────┘
-                                             │
-                    ┌────────────────────────┼────────────────────────────────────┐
-                    │                        ▼                                      │
-                    │              ┌─────────────────┐                              │
-                    │              │  Format Router  │ (main.py)                   │
-                    │              │  /extract       │                              │
-                    │              └────────┬────────┘                              │
-                    │        ┌──────────────┼──────────────┐                        │
-                    │        ▼              ▼              ▼                        │
-                    │    ┌────────┐    ┌────────┐    ┌────────┐                      │
-                    │    │  PDF   │    │ Image  │    │ Media  │                      │
-                    │    │Pipeline│    │Pipeline│    │Pipeline│                      │
-                    │    └───┬────┘    └───┬────┘    └───┬────┘                      │
-                    │        │             │             │                            │
-                    │        ▼             │             ▼                            │
-                    │   ┌─────────┐       │      ┌───────────┐                       │
-                    │   │Pre-OCR  │       │      │  ffprobe  │                       │
-                    │   │ Regex   │       │      │(audio/vid)│                       │
-                    │   └───┬─────┘       │      └───────────┘                       │
-                    │       │             │                                            │
-                    │       ▼             ▼                                            │
-                    │   ┌─────────────────────────────┐                               │
-                    │   │      VParse API Client      │                               │
-                    │   │      (vparse_client.py)     │                               │
-                    │   └──────────────┬──────────────┘                               │
-                    │                  │                                              │
-                     │    ┌─────────────┴─────────────┐                                │
-                     │    │                          │                                │
-                     │    ▼                          ▼                                │
-                     │┌─────────┐              ┌──────────┐                           │
-                     ││ pipeline│              │   vLLM   │                            │
-                     ││ backend│              │  Gemma-4  │                            │
-                     │└────┬────┘              └────┬─────┘                           │
-                     │     │                        │                                  │
-                     │     ▼                        ▼                                  │
-                     │┌─────────────────────────────────────┐                          │
-                     ││       Gemma-4 (Text + Vision)        │                          │
-                     ││         via vLLM Engine              │                          │
-                     │└─────────────────────────────────────┘                          │
-                     │                  │                                              │
-                     │                  │                                              │
-                      │        ┌─────────┴──────────┐                                  │
-                      │        │                    │                                   │
-                      │        ▼                    ▼                                   │
-                      │   ┌─────────────┐    ┌──────────────┐                          │
-                      │   │  Gemma-4    │    │  OpenLibrary │                          │
-                      │   │   vLLM     │    │     API      │                          │
-                      │   └─────────────┘    └──────────────┘                          │
-                    │         │                                                       │
-                    │         └───────────────┬──────────────────────────────────────┘
-                    │                         │
-                    │                   ┌──────▼────────┐
-                    │                   │  JSON Result  │
-                    │                   └───────────────┘
-                    │
-                    │  ┌─────────────────────────────────────────────────────────┐
-                    │  │              Celery + Redis (Phase 3)                   │
-                    │  │                                                          │
-                    │  │   Tasks: extract_task, batch_extract_task               │
-                    │  │   Queues: default, vlm_queue, batch_queue               │
-                    │  │   Results: Redis backend with 24h TTL                    │
-                    │  └─────────────────────────────────────────────────────────┘
-                    └──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                          CLIENT LAYER                                │
+│                                                                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────────────┐  │
+│  │   CLI (Typer) │  │  FastAPI     │  │  Celery Worker (CLI)      │  │
+│  │  extract     │  │  /extract    │  │  worker -q ...            │  │
+│  │  model list  │  │  /extract/async                              │  │
+│  │  model dl    │  │  /jobs/{id}  │  │                           │  │
+│  └──────┬───────┘  └──────┬───────┘  └─────────────┬──────────────┘  │
+│         │                 │                         │                  │
+└─────────┼─────────────────┼─────────────────────────┼──────────────────┘
+          │                 │                         │
+          ▼                 ▼                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                        APPLICATION LAYER                              │
+│                                                                       │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │                      ExtractionPipeline                         │  │
+│  │                                                                 │  │
+│  │  process_pdf() ──► vParse OCR ──► extract_from_text()         │  │
+│  │  process_image() ──► extract_image_metadata()                 │  │
+│  │  process_text_file() ──► extract_from_text()                  │  │
+│  │                                                                 │  │
+│  │  extract_from_text() ─┬─► _extract_book_metadata()            │  │
+│  │                       └─► _extract_magazine_metadata()        │  │
+│  └────────────────────────┬───────────────────────────────────────┘  │
+│                           │                                           │
+│              ┌────────────┼────────────┐                              │
+│              ▼            ▼            ▼                              │
+│  ┌──────────────┐ ┌────────────┐ ┌──────────────┐                    │
+│  │  VLMClient   │ │ validation │ │ external_api │                    │
+│  │  (vLLM LLM)  │ │  (ISBN)    │ │ (OpenLibrary)│                    │
+│  │  Singleton   │ │            │ │              │                    │
+│  └──────────────┘ └────────────┘ └──────────────┘                    │
+│                                                                       │
+│  ┌──────────────┐ ┌────────────┐ ┌──────────────┐ ┌───────────────┐ │
+│  │ hardware.py  │ │ models.py  │ │ models_reg.  │ │ vparse_client │ │
+│  │ GPU detect   │ │ Pydantic   │ │ HF cache     │ │ HTTP to vParse│ │
+│  │ vLLM config  │ │ Data models│ │ scanner      │ │ OCR API       │ │
+│  └──────────────┘ └────────────┘ └──────────────┘ └───────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+          │                                                 │
+          ▼                                                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                        ASYNC / QUEUE LAYER                            │
+│                                                                       │
+│  ┌─────────────────┐          ┌─────────────────┐                     │
+│  │  Redis Broker   │◄────────►│  Celery Workers  │                     │
+│  │  redis:6379/0   │          │                  │                     │
+│  │  (task queue)   │          │  worker-gpu      │                     │
+│  │  (result backend)│         │  - vlm_queue     │                     │
+│  └─────────────────┘          │  - concurrency 2 │                     │
+│                               │  - NVIDIA GPU    │                     │
+│                               │                  │                     │
+│                               │  worker-cpu      │                     │
+│                               │  - default_queue │                     │
+│                               │  - concurrency 8 │                     │
+│                               │  - CPU only      │                     │
+│                               └─────────────────┘                     │
+└─────────────────────────────────────────────────────────────────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                        EXTERNAL SERVICES                              │
+│                                                                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────────────┐  │
+│  │  vParse API  │  │  HuggingFace │  │  Open Library API          │  │
+│  │  (mineru)    │  │  Model Cache │  │  (ISBN validation)         │  │
+│  │  OCR engine  │  │  ~/.cache/   │  │  https://openlibrary.org   │  │
+│  │  port 8000   │  │  huggingface │  │                            │  │
+│  └──────────────┘  └──────────────┘  └────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -87,13 +85,13 @@
 
 | Module                  | File                        | Responsibility                   | Dependencies                                        |
 | ----------------------- | --------------------------- | -------------------------------- | --------------------------------------------------- |
-| **Format Router**       | `main.py`                   | Route files by extension         | pipeline                                            |
+| **Format Router**       | `main.py`                   | Route files by extension         | pipeline, tasks                                     |
 | **Extraction Pipeline** | `pipeline.py`               | Orchestrate extraction           | vparse_client, vlm_client, external_api, validation |
-| **Pre-OCR Extractor**   | `pdf_metadata_extractor.py` | Quick metadata before OCR        | PyPDF2, regex                                       |
-| **Media Utils**         | `media_utils.py`            | Audio/video metadata via ffprobe | subprocess                                          |
-| **VLM Client**          | `vlm_client.py`             | Gemma-4 vLLM integration         | httpx, vllm                                         |
+| **VLM Client**          | `vlm_client.py`             | vLLM singleton wrapper           | vllm, hardware                                      |
 | **Image Utils**         | `image_utils.py`            | EXIF extraction                  | PIL, piexif                                         |
 | **Validation**          | `validation.py`             | ISBN validation                  | regex                                               |
+| **Hardware Detection**  | `hardware.py`               | GPU/CPU/TPU detection            | pynvml, torch, psutil                               |
+| **Models Registry**     | `models_registry.py`        | Model cache scanner              | huggingface_hub                                     |
 | **Celery Tasks**        | `tasks.py`                  | Async task definitions           | pipeline, celery                                    |
 
 ### Shallow Modules (Adapters)
@@ -114,16 +112,10 @@ PDF Upload
     │
     ▼
 ┌───────────────────────────────┐
-│ Pre-OCR Regex Extraction      │
-│ (ISBN, title, author, etc.)   │
-└───────────────────────────────┘
-    │
-    ▼
-┌───────────────────────────────┐
-│ VParse OCR (pipeline)         │
+│ vParse OCR API                │
 │ - Layout detection            │
 │ - Text extraction             │
-│ - OCR (PaddleOCR)             │
+│ - Returns content_list        │
 └───────────────────────────────┘
     │
     ▼
@@ -131,34 +123,31 @@ PDF Upload
 │ Text Processing               │
 │ - Clean text                  │
 │ - Join content_list           │
-└───────────────────────────────┘
-    │
-    ├───┬───────────────────────┘
-    │   │
-    ▼   ▼
-┌───────────────────────────────┐
-│ LLM Semantic Extraction       │
-│ (Gemma-4 via vLLM)            │
-│ - Title, author, publisher    │
+│ - Remove image refs           │
 └───────────────────────────────┘
     │
     ▼
 ┌───────────────────────────────┐
-│ ISBN Validation               │
-│ - Extract ISBN from text      │
-│ - OpenLibrary lookup          │
-│ - Merge metadata              │
+│ Content Type Detection        │
+│ - Magazine vs Book            │
 └───────────────────────────────┘
     │
-    ▼
-┌───────────────────────────────┐
-│ OCR Format Standardization     │
-│ - transcription, confidence   │
-│ - segments, named_entities    │
-└───────────────────────────────┘
-    │
-    ▼
-JSON Result
+    ├── Book ──────────────────────┐
+    │                              │
+    ▼                              ▼
+┌───────────────────────────────┐ ┌───────────────────────────────┐
+│ Book Metadata Extraction      │ │ Magazine Metadata Extraction  │
+│ - LLM semantic fields         │ │ - LLM magazine prompt         │
+│ - ISBN regex extraction       │ │ - Dynamic language labels     │
+│ - OpenLibrary lookup          │ │ - Confidence scoring          │
+│ - Confidence scoring          │ │                               │
+└──────────────┬────────────────┘ └──────────────┬────────────────┘
+               │                                  │
+               └──────────────┬───────────────────┘
+                              ▼
+                    ┌─────────────────┐
+                    │  JSON Result    │
+                    └─────────────────┘
 ```
 
 ### Image Processing Flow
@@ -171,26 +160,55 @@ Image Upload
 │ EXIF Extraction (PIL/piexif)  │
 │ - Width, height, format       │
 │ - Camera make/model           │
-│ - GPS coordinates              │
-│ - Date, lens info             │
+│ - GPS coordinates (DMS→decimal)│
+│ - Date, lens info, DPI        │
 └───────────────────────────────┘
     │
     ▼
 ┌───────────────────────────────┐
-│ VLM Description (Gemma-4 vLLM)│
-│ - Send image to Gemma-4 vLLM  │
-│ - Generate description         │
-│ - Extract entities             │
+│  JSON Result (ImageMetadata)  │
+└───────────────────────────────┘
+```
+
+### Async Processing Flow
+
+```
+POST /extract/async
+    │
+    ▼
+┌───────────────────────────────┐
+│ Save file to uploads/         │
+│ Generate UUID file_id         │
 └───────────────────────────────┘
     │
     ▼
 ┌───────────────────────────────┐
-│ Combine Results               │
-│ - EXIF + VLM in single model  │
+│ Route to Celery task          │
+│ - PDF → extract_pdf_task      │
+│ - Image → extract_image_task  │
+│ - Text → extract_text_task    │
 └───────────────────────────────┘
     │
     ▼
-JSON Result
+┌───────────────────────────────┐
+│ Redis broker queues task      │
+│ - vlm_queue (GPU) for PDF/text│
+│ - default_queue (CPU) for img │
+└───────────────────────────────┘
+    │
+    ▼
+┌───────────────────────────────┐
+│ Worker picks up task          │
+│ - Lazy-load pipeline singleton│
+│ - Execute extraction          │
+│ - Cleanup uploaded file       │
+└───────────────────────────────┘
+    │
+    ▼
+┌───────────────────────────────┐
+│ Redis stores result           │
+│ Client polls GET /jobs/{id}   │
+└───────────────────────────────┘
 ```
 
 ---
@@ -202,10 +220,9 @@ JSON Result
 | **API**              | FastAPI                         | REST endpoints, async          |
 | **CLI**              | Typer                           | Command-line interface         |
 | **OCR**              | VParse (mineru-dots)            | PDF/document OCR               |
-| **LLM/VLM**          | Gemma-4 (google/gemma-4-E4B-it) | Unified text + vision via vLLM |
+| **LLM**              | Qwen2.5-VL, Qwen3-VL, Gemma 4   | Text semantic extraction       |
 | **Inference Engine** | vLLM + PyTorch                  | GPU-accelerated LLM inference  |
 | **ISBN Lookup**      | OpenLibrary API                 | Book metadata                  |
-| **Media**            | ffprobe                         | Audio/video metadata           |
 | **Tasks**            | Celery + Redis                  | Async processing               |
 | **Container**        | Docker                          | Deployment                     |
 
@@ -217,15 +234,8 @@ JSON Result
 
 | Service     | Purpose         | Rate Limit  |
 | ----------- | --------------- | ----------- |
-| VParse API  | OCR and VLM     | N/A (local) |
+| VParse API  | OCR             | N/A (local) |
 | OpenLibrary | ISBN enrichment | 100 req/s   |
-
-### External Tools
-
-| Tool      | Purpose              | Required |
-| --------- | -------------------- | -------- |
-| ffprobe   | Audio/video metadata | Yes      |
-| tesseract | Lite OCR (optional)  | No       |
 
 ---
 
@@ -233,14 +243,17 @@ JSON Result
 
 ### Environment Variables
 
-| Variable                   | Description                        | Default                            |
-| -------------------------- | ---------------------------------- | ---------------------------------- |
-| `VPARSE_API_URL`           | VParse API endpoint                | `http://localhost:8000/file_parse` |
-| `BOOKEXTRACTOR_MODELS_DIR` | Local models directory             | `./models`                         |
-| `VLLM_MODEL`               | Gemma-4 model ID                   | `google/gemma-4-E4B-it`            |
-| `HF_TOKEN`                 | HuggingFace token for model access | (required)                         |
-| `CELERY_BROKER_URL`        | Redis broker URL                   | `redis://localhost:6379/0`         |
-| `CELERY_RESULT_BACKEND`    | Redis result backend               | `redis://localhost:6379/0`         |
+| Variable                      | Description                        | Default                            |
+| ----------------------------- | ---------------------------------- | ---------------------------------- |
+| `VPARSE_API_URL`              | VParse API endpoint                | `http://localhost:8000/file_parse` |
+| `VLLM_MODEL_ID`               | HuggingFace model ID               | `Qwen/Qwen2.5-VL-7B-Instruct`      |
+| `CELERY_BROKER_URL`           | Redis broker URL                   | `redis://localhost:6379/0`         |
+| `CELERY_RESULT_BACKEND`       | Redis result backend               | `redis://localhost:6379/0`         |
+| `BOOKEXTRACTOR_UPLOAD_DIR`    | Upload directory                   | `uploads`                          |
+| `VLLM_DEVICE`                 | Target device: cuda, tpu, mps, cpu | Auto-detected                      |
+| `VLLM_DTYPE`                  | Model precision                    | Auto-optimized                     |
+| `VLLM_GPU_MEMORY_UTILIZATION` | GPU memory fraction (0.0-1.0)      | Auto-optimized                     |
+| `VLLM_TENSOR_PARALLEL_SIZE`   | Number of GPUs (or `auto`)         | Auto-optimized                     |
 
 ---
 
@@ -249,14 +262,12 @@ JSON Result
 ### Input Validation
 
 - File type validation by extension
-- File size limits
 - Malformed file handling
 
 ### API Security
 
-- API key authentication (future: Phase N)
-- Rate limiting (future: Phase 4)
-- Tenant isolation (future: Phase N)
+- API key authentication (future)
+- Rate limiting (future)
 
 ---
 
@@ -264,20 +275,18 @@ JSON Result
 
 ### CPU-bound Operations
 
-- VParse OCR (pipeline backend)
-- Gemma-4 text processing (vLLM)
-- ffprobe metadata extraction
-- Pre-OCR regex extraction
+- vParse OCR (external service)
+- EXIF extraction (PIL + piexif)
 
 ### GPU-bound Operations
 
-- Gemma-4 vLLM inference (text + vision unified)
+- vLLM LLM inference (text semantic extraction)
 
 ### Memory Considerations
 
-- Streaming for large PDFs
-- Batch processing for images (Phase 4)
-- GPU memory management (Phase 4)
+- Pipeline singleton per worker process
+- Worker restart after 100 tasks (memory leak prevention)
+- GPU memory utilization auto-optimized by hardware detection
 
 ---
 
@@ -286,14 +295,17 @@ JSON Result
 ### Horizontal Scaling
 
 - API servers: Stateless, scale behind load balancer
-- CPU workers: Celery prefork pool
-- GPU workers: Separate queue for VLM tasks
+- CPU workers: Celery prefork pool (concurrency 8)
+- GPU workers: Separate queue for LLM tasks (concurrency 2)
 
-### Vertical Scaling
+### Queue Routing
 
-- A100 GPU: 80GB VRAM for VLM batching
-- Worker concurrency: 8 CPU workers per node
+| File Type | Queue | Worker | LLM |
+|-----------|-------|--------|-----|
+| PDF | `vlm_queue` | worker-gpu | Yes |
+| Text/JSON/MD | `vlm_queue` | worker-gpu | Yes |
+| Images | `default_queue` | worker-cpu | No |
 
 ---
 
-_Last updated: Phase 2 implementation_
+_Last updated: Phase 3 (Celery + Redis) complete_

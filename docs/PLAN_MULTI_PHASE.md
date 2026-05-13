@@ -19,12 +19,12 @@
 | Component            | Technology                      | Purpose                               |
 | -------------------- | ------------------------------- | ------------------------------------- |
 | **API Framework**    | FastAPI                         | REST API endpoints                    |
+| **CLI**              | Typer                           | Command-line interface                |
 | **OCR Engine**       | VParse (mineru-dots)            | PDF and document OCR                  |
-| **LLM/VLM**          | Gemma-4 (google/gemma-4-E4B-it) | Unified text + vision inference       |
-| **Inference Engine** | vLLM + PyTorch                  | GPU-accelerated unified LLM inference |
+| **LLM/VLM**          | Qwen2.5-VL, Qwen3-VL, Gemma 4   | Text semantic extraction              |
+| **Inference Engine** | vLLM + PyTorch                  | GPU-accelerated LLM inference         |
 | **ISBN Lookup**      | OpenLibrary API                 | Book metadata enrichment              |
-| **Audio/Video**      | ffprobe                         | Media metadata extraction             |
-| **Task Queue**       | Celery + Redis                  | Async processing foundation           |
+| **Task Queue**       | Celery + Redis                  | Async background processing           |
 | **Container**        | Docker + Docker Compose         | Deployment                            |
 
 ---
@@ -62,21 +62,41 @@
 | -------------------------- | ---------------------------------- | ---------------------------------- |
 | `VPARSE_API_URL`           | VParse API endpoint                | `http://localhost:8000/file_parse` |
 | `BOOKEXTRACTOR_MODELS_DIR` | Local models directory             | `./models`                         |
-| `VLLM_MODEL`               | Gemma-4 model ID                   | `google/gemma-4-E4B-it`            |
-| `HF_TOKEN`                 | HuggingFace token for model access | (required)                         |
 
 ---
 
-## Phase 2: Multimedia & VLM Enhancement 🚧 IN PROGRESS
+## Phase 2: Multimedia & VLM Enhancement ✅ COMPLETE
 
 ### Objectives
 
-- Add audio/video metadata extraction
-- Implement image Level 2 VLM using Gemma-4 via vLLM
-- Add pre-OCR regex extraction for PDFs
-- Standardize OCR output format
-- Foundation for async processing
-- **Switch inference engine from llama-cpp to vLLM + PyTorch**
+- Switch inference engine from llama-cpp to vLLM + PyTorch
+- Add hardware auto-detection and vLLM optimization
+- Add model management CLI commands
+- Add magazine/periodical metadata extraction
+- Support multiple models (Qwen, Gemma)
+
+### Completed
+
+| Feature                  | Module                         | Status |
+| ------------------------ | ------------------------------ | ------ |
+| vLLM Engine              | `vlm_client.py`, `pipeline.py` | ✅     |
+| Hardware Detection       | `hardware.py`                  | ✅     |
+| Model Registry           | `models_registry.py`           | ✅     |
+| Model CLI Commands       | `main.py`                      | ✅     |
+| Magazine Extraction      | `pipeline.py`                  | ✅     |
+| Model Downloader         | `scripts/setup_models.py`      | ✅     |
+| Docker GPU Support       | `docker-compose.yml`           | ✅     |
+| HF Cache (HF_HOME aware) | `models_registry.py`           | ✅     |
+
+### Not Implemented (Deferred)
+
+| Feature                  | Reason |
+| ------------------------ | ------ |
+| Audio Metadata           | No current use case |
+| Video Metadata           | No current use case |
+| Pre-OCR Regex            | vParse provides sufficient quality |
+| Image VLM Description    | Vision model not integrated for images |
+| OCR Format Standard      | vParse output is sufficient |
 
 ### 2.1 Audio/Video Metadata Extraction
 
@@ -465,45 +485,61 @@ async def get_job_status(job_id: str):
 
 ### Phase 2 Summary
 
-| Feature                  | Module                         | Status                 |
-| ------------------------ | ------------------------------ | ---------------------- |
-| Audio Metadata           | `media_utils.py`               | New                    |
-| Video Metadata           | `media_utils.py`               | New                    |
-| Pre-OCR Regex            | `pdf_metadata_extractor.py`    | New                    |
-| Image VLM (Gemma-4 vLLM) | `vlm_client.py`                | New                    |
-| vLLM Engine              | `pipeline.py`                  | Changed from llama-cpp |
-| OCR Format Standard      | `models.py`, `pipeline.py`     | Modified               |
-| Celery Foundation        | `tasks.py`, `celery_config.py` | New                    |
+| Feature                  | Module                         | Status     |
+| ------------------------ | ------------------------------ | ---------- |
+| vLLM Engine              | `vlm_client.py`, `pipeline.py` | ✅ Complete |
+| Hardware Detection       | `hardware.py`                  | ✅ Complete |
+| Model Registry           | `models_registry.py`           | ✅ Complete |
+| Model CLI Commands       | `main.py`                      | ✅ Complete |
+| Magazine Extraction      | `pipeline.py`                  | ✅ Complete |
+| Model Downloader         | `scripts/setup_models.py`      | ✅ Complete |
+| Docker GPU Support       | `docker-compose.yml`           | ✅ Complete |
+| Audio Metadata           | `media_utils.py`               | 📋 Deferred |
+| Video Metadata           | `media_utils.py`               | 📋 Deferred |
+| Pre-OCR Regex            | `pdf_metadata_extractor.py`    | 📋 Deferred |
+| Image VLM                | `vlm_client.py`                | 📋 Deferred |
+| OCR Format Standard      | `models.py`, `pipeline.py`     | 📋 Deferred |
 
 ---
 
-## Phase 3: Async Processing & Distributed Workers
+## Phase 3: Async Processing & Distributed Workers ✅ COMPLETE
 
 ### Objectives
 
 - Activate Celery queue for true async processing
-- Implement GPU worker pool for VLM + LLM processing
-- Add batch processing capabilities
-- Implement progress tracking and checkpointing
+- Implement GPU worker pool for LLM processing
+- Implement CPU worker pool for image extraction
+- Add async API endpoints
+
+### Completed
+
+| Feature | Module | Status |
+|---------|--------|--------|
+| Redis Broker | `celery_config.py` | ✅ |
+| Celery Tasks | `tasks.py` | ✅ |
+| Queue Routing | `celery_config.py` | ✅ |
+| GPU Worker | `docker-compose.yml` | ✅ |
+| CPU Worker | `docker-compose.yml` | ✅ |
+| Async API | `main.py` | ✅ |
+| Model Downloader Service | `docker-compose.yml` | ✅ |
 
 ### Queue Configuration
 
-| Queue       | Worker Type | Concurrency | Purpose                                       |
-| ----------- | ----------- | ----------- | --------------------------------------------- |
-| `default`   | CPU         | 8           | Standard extraction (PDF, text, audio, video) |
-| `vlm_queue` | GPU         | 2           | Gemma-4 vLLM (text + vision unified)          |
-| `celery`    | CPU         | 4           | Internal Celery tasks                         |
+| Queue       | Worker Type | Concurrency | Purpose                         |
+| ----------- | ----------- | ----------- | ------------------------------- |
+| `vlm_queue` | GPU         | 2           | LLM inference (PDF/text)        |
+| `default_queue` | CPU     | 8           | Image EXIF extraction           |
 
 ### Worker Launch
 
 ```bash
-# GPU worker for VLM + LLM tasks
+# GPU worker for LLM tasks
 celery -A bookextractor.tasks worker \
     --hostname=vlm-worker@%h \
     --concurrency=2 \
     -Q vlm_queue
 
-# CPU worker for standard extraction
+# CPU worker for image extraction
 celery -A bookextractor.tasks worker \
     --hostname=extraction-worker@%h \
     --concurrency=8 \
@@ -550,12 +586,12 @@ async def extract_with_cache(file_path: str, options: dict):
 
 | Module                      | Responsibility                   | Dependencies        |
 | --------------------------- | -------------------------------- | ------------------- |
-| `pdf_metadata_extractor.py` | Pre-OCR text/metadata extraction | PyPDF2, regex       |
-| `media_utils.py`            | Audio/video metadata via ffprobe | subprocess, ffprobe |
-| `vlm_client.py`             | VLM inference via Gemma-4 vLLM   | vllm, transformers  |
+| `vlm_client.py`             | vLLM singleton wrapper           | vllm, hardware      |
 | `validation.py`             | ISBN validation                  | regex               |
 | `image_utils.py`            | EXIF extraction                  | PIL, piexif         |
-| `pipeline.py`               | Orchestration + vLLM inference   | vllm, transformers  |
+| `pipeline.py`               | Orchestration + LLM inference    | vllm, vparse_client |
+| `hardware.py`               | GPU/CPU/TPU detection            | pynvml, torch       |
+| `models_registry.py`        | Model cache scanner              | huggingface_hub     |
 
 ### Shallow Modules (Adapters)
 
@@ -570,17 +606,23 @@ async def extract_with_cache(file_path: str, options: dict):
 
 ### Unit Tests
 
-- Mock external APIs (VParse, OpenLibrary, ffprobe)
+- Mock external APIs (VParse, OpenLibrary)
 - Test regex patterns with known inputs
 - Validate data model serialization
 - Test GPS normalization edge cases
+- Mock vLLM LLM for semantic extraction tests
 
 ### Integration Tests
 
 - Real VParse API calls
-- Real ffprobe execution
 - End-to-end pipeline tests
-- vLLM inference tests
+- Celery task execution tests
+- Async API endpoint tests
+
+### Coverage
+
+- Target: 90%+ coverage
+- Current: 95% (140 tests)
 
 ---
 
@@ -588,24 +630,23 @@ async def extract_with_cache(file_path: str, options: dict):
 
 ### Phase 2
 
-- [ ] Deploy VParse OCR backend
-- [ ] Configure `VPARSE_API_URL`
-- [ ] Add ffprobe to Docker image
-- [ ] Install vLLM and PyTorch with CUDA support
-- [ ] Configure HuggingFace token
-- [ ] Test audio/video extraction
-- [ ] Test image VLM pipeline
-- [ ] Verify Celery task definitions
-- [ ] Update API documentation
+- [x] Deploy VParse OCR backend
+- [x] Configure `VPARSE_API_URL`
+- [x] Install vLLM and PyTorch with CUDA support
+- [x] Configure HuggingFace cache directory
+- [x] Test PDF extraction
+- [x] Test image EXIF pipeline
+- [x] Verify hardware detection
+- [x] Update API documentation
 
 ### Phase 3
 
-- [ ] Deploy Redis
-- [ ] Configure Celery broker/result backend
-- [ ] Launch GPU workers
-- [ ] Launch CPU workers
-- [ ] Enable async queue
-- [ ] Test batch processing
+- [x] Deploy Redis
+- [x] Configure Celery broker/result backend
+- [x] Launch GPU workers
+- [x] Launch CPU workers
+- [x] Enable async queue
+- [x] Add async API endpoints
 
 ### Phase 4
 
@@ -622,18 +663,16 @@ async def extract_with_cache(file_path: str, options: dict):
 | ---------------------- | ------------------------------------------------------------------------------------------------- |
 | **vLLM**               | High-throughput LLM inference engine with GPU acceleration                                        |
 | **VLM**                | Vision Language Model - AI model that understands both images and text                            |
-| **Pre-OCR**            | Metadata extraction performed before OCR to enable early overrides                                |
-| **Level 2 Extraction** | VLM-powered image description beyond basic EXIF metadata                                          |
 | **Celery**             | Async task queue for Python                                                                       |
-| **Gemma-4**            | Google's unified multimodal model (google/gemma-4-E4B-it) via vLLM. Handles both text and vision. |
+| **VParse**             | OCR engine based on mineru-dots                                                                   |
+| **HF_HOME**            | HuggingFace cache directory environment variable                                                  |
 
 ---
 
 ## References
 
 - VParse (mineru-dots): https://github.com/suryamanoj4/mineru-dots
-- Gemma-4 vLLM Model: https://huggingface.co/google/gemma-4-E4B-it
-- Gemma-4 Model: https://huggingface.co/google/gemma-4-E4B-it
 - vLLM Documentation: https://docs.vllm.ai/
 - OpenLibrary API: https://openlibrary.org/developers/api
 - Celery Documentation: https://docs.celeryproject.org/
+- HuggingFace Hub: https://huggingface.co/docs/hub/
