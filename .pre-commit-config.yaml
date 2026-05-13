@@ -67,7 +67,7 @@ repos:
 
       - id: pytest-cov
         name: pytest coverage
-        entry: uv run --group test pytest tests/ --cov=bookextractor --cov-report=term-missing --cov-fail-under=90
+        entry: uv run pytest tests/ --cov=bookextractor --cov-report=term-missing --cov-fail-under=90
         language: system
         types: [python]
         pass_filenames: false
