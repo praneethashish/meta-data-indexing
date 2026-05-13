@@ -1,7 +1,13 @@
-from unittest.mock import patch
+import pytest
 
-import piexif
-from PIL import Image
+try:
+    import piexif
+    from PIL import Image
+except ImportError:
+    piexif = None  # type: ignore
+    Image = None  # type: ignore
+
+from unittest.mock import patch
 
 from bookextractor.image_utils import (
     combine_regions,
@@ -21,6 +27,7 @@ def test_get_decimal_from_dms():
     assert abs(get_decimal_from_dms(dms, "W") - (-118.2458333)) < 0.0001
 
 
+@pytest.mark.skipif(Image is None, reason="PIL not installed")
 def test_crop_regions():
     img = Image.new("RGB", (100, 100))
     regions = crop_regions(img)
@@ -30,6 +37,7 @@ def test_crop_regions():
     assert regions[2].size == (100, 25)
 
 
+@pytest.mark.skipif(Image is None, reason="PIL not installed")
 def test_crop_bbox():
     from unittest.mock import MagicMock
 
@@ -43,6 +51,7 @@ def test_crop_bbox():
     assert cropped.size == (50, 50)
 
 
+@pytest.mark.skipif(Image is None, reason="PIL not installed")
 def test_combine_regions():
     a = [Image.new("RGB", (1, 1))]
     b = [Image.new("RGB", (1, 1))]
@@ -50,6 +59,7 @@ def test_combine_regions():
     assert len(combined) == 2
 
 
+@pytest.mark.skipif(Image is None or piexif is None, reason="PIL or piexif not installed")
 def test_extract_image_metadata_no_date(tmp_path):
     # Test line 90 (no date_taken)
     test_img_path = str(tmp_path / "test_no_date.jpg")
@@ -64,6 +74,7 @@ def test_extract_image_metadata_no_date(tmp_path):
     assert metadata["exif_date_taken"] is None
 
 
+@pytest.mark.skipif(Image is None, reason="PIL not installed")
 def test_extract_image_metadata_no_dpi_no_exif(tmp_path):
     # Test line 90 (no dpi) and lines 107-108 (corrupt EXIF)
     test_img_path = str(tmp_path / "test_no_info.jpg")
@@ -79,6 +90,10 @@ def test_extract_image_metadata_no_dpi_no_exif(tmp_path):
         metadata = extract_image_metadata(test_img_path)
         # Should return metadata despite EXIF error
         assert metadata["width"] == 10
+
+
+@pytest.mark.skipif(Image is None or piexif is None, reason="PIL or piexif not installed")
+def test_extract_image_metadata_full(tmp_path):
     test_img_path = str(tmp_path / "test_image.jpg")
 
     # Create a simple RGB image

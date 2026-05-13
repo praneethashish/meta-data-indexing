@@ -1,11 +1,11 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import fitz
-import piexif
-from PIL import Image
+if TYPE_CHECKING:
+    import fitz
+    from PIL import Image
 
 
-def crop_regions(img: Image.Image) -> list[Image.Image]:
+def crop_regions(img: "Image.Image") -> list["Image.Image"]:
     """
     Keep top, middle, bottom regions.
     """
@@ -16,7 +16,7 @@ def crop_regions(img: Image.Image) -> list[Image.Image]:
     return [top, middle, bottom]
 
 
-def crop_bbox(img: Image.Image, rect: fitz.Rect, page_rect: fitz.Rect) -> Image.Image:
+def crop_bbox(img: "Image.Image", rect: "fitz.Rect", page_rect: "fitz.Rect") -> "Image.Image":
     """
     Crop image using PyMuPDF Rect coordinates.
     """
@@ -34,7 +34,7 @@ def crop_bbox(img: Image.Image, rect: fitz.Rect, page_rect: fitz.Rect) -> Image.
     return img.crop((left, top, right, bottom))
 
 
-def combine_regions(standard_crops: list[Image.Image], keyword_crops: list[Image.Image]) -> list[Image.Image]:
+def combine_regions(standard_crops: list["Image.Image"], keyword_crops: list["Image.Image"]) -> list["Image.Image"]:
     return standard_crops + keyword_crops
 
 
@@ -55,6 +55,8 @@ def extract_image_metadata(image_path: str) -> dict[str, Any]:
     """
     Extracts metadata and EXIF data from an image file.
     """
+    from PIL import Image
+
     with Image.open(image_path) as img:
         width, height = img.size
         img_format = img.format
@@ -71,6 +73,8 @@ def extract_image_metadata(image_path: str) -> dict[str, Any]:
         }
 
         try:
+            import piexif
+
             exif_dict = piexif.load(img.info.get("exif", b""))
             if exif_dict:
                 # 0th IFD

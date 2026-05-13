@@ -2,6 +2,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+try:
+    from vllm import SamplingParams as _SamplingParams
+except ImportError:
+    _SamplingParams = None  # type: ignore
+
 from bookextractor.vlm_client import VLMClient
 
 
@@ -24,6 +29,7 @@ def test_vlm_client_singleton(mock_llm):
     assert mock_llm.called
 
 
+@pytest.mark.skipif(_SamplingParams is None, reason="vllm not installed")
 @pytest.mark.asyncio
 async def test_vlm_client_generate(mock_llm):
     """Test the generate method of VLMClient."""
@@ -41,9 +47,7 @@ async def test_vlm_client_generate(mock_llm):
     mock_instance.generate.assert_called_once()
 
     # Custom params
-    from vllm import SamplingParams
-
-    custom_params = SamplingParams(temperature=0.0)
+    custom_params = _SamplingParams(temperature=0.0)
     client.generate(["prompt"], sampling_params=custom_params)
     assert mock_instance.generate.call_count == 2
 

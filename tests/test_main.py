@@ -4,6 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+try:
+    import huggingface_hub
+except ImportError:
+    huggingface_hub = None  # type: ignore
+
 from bookextractor.main import app
 
 
@@ -455,6 +460,7 @@ def test_model_remove_multiple_matches():
         assert "Removed" in result.output
 
 
+@pytest.mark.skipif(huggingface_hub is None, reason="huggingface_hub not installed")
 def test_model_download_with_selection():
     from typer.testing import CliRunner
 
@@ -472,6 +478,7 @@ def test_model_download_with_selection():
         mock_download.assert_called_once_with("testorg/testmodel")
 
 
+@pytest.mark.skipif(huggingface_hub is None, reason="huggingface_hub not installed")
 def test_model_download_already_cached():
     from typer.testing import CliRunner
 
@@ -489,6 +496,7 @@ def test_model_download_already_cached():
         mock_download.assert_not_called()
 
 
+@pytest.mark.skipif(huggingface_hub is None, reason="huggingface_hub not installed")
 def test_model_download_no_selection():
     from typer.testing import CliRunner
 

@@ -3,6 +3,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+try:
+    import torch
+except ImportError:
+    torch = None  # type: ignore
+
 from bookextractor.hardware import _check_mps, _check_nvidia_nvml, _check_nvidia_torch, get_vllm_config
 
 
@@ -37,11 +42,13 @@ def test_check_nvidia_nvml_bytes_name(mock_pynvml):
     assert res["name"] == "Tesla T4"
 
 
+@pytest.mark.skipif(torch is None, reason="torch not installed")
 def test_check_nvidia_torch_no_cuda():
     with patch("torch.cuda.is_available", return_value=False):
         assert _check_nvidia_torch() is None
 
 
+@pytest.mark.skipif(torch is None, reason="torch not installed")
 def test_check_mps_no_mps():
     with patch("torch.backends.mps.is_available", return_value=False):
         assert _check_mps() is None

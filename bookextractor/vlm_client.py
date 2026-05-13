@@ -6,8 +6,19 @@ try:
     from vllm import LLM, SamplingParams
 except ImportError:
     # Fallback for linting/testing in slim environments
-    LLM = Any  # type: ignore
-    SamplingParams = Any  # type: ignore
+    class _SamplingParamsStub:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+    class _LLMStub:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        def generate(self, *_args: Any, **_kwargs: Any) -> Any:
+            return []
+
+    SamplingParams = _SamplingParamsStub  # type: ignore
+    LLM = _LLMStub  # type: ignore
 
 from .hardware import get_vllm_config
 

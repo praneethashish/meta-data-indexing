@@ -6,7 +6,15 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any, cast
 
-from vllm import SamplingParams
+try:
+    from vllm import SamplingParams
+except ImportError:
+
+    class _SamplingParamsStub:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+    SamplingParams = _SamplingParamsStub  # type: ignore
 
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
