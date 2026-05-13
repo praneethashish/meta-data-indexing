@@ -16,6 +16,7 @@ def mock_llm():
         yield mock
 
 
+@pytest.mark.skipif(_SamplingParams is None, reason="vllm not installed")
 def test_vlm_client_singleton(mock_llm):
     """Test that VLMClient maintains a singleton instance."""
     # Reset singleton state for testing

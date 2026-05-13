@@ -76,6 +76,15 @@ class VLMClient:
 
     def _initialize_llm(self) -> None:
         """Initialize vLLM engine with hardware-optimized configuration."""
+        if not isinstance(LLM, type) or LLM.__name__ == "_LLMStub":
+            raise RuntimeError(
+                "vLLM is not installed. For LLM-based extraction (PDF, text files), "
+                "install the ML dependencies:\n"
+                "  uv pip install -e '.[ml]'\n"
+                "or\n"
+                "  uv sync --extra ml"
+            )
+
         config = get_vllm_config()
 
         logger.info(f"Initializing VLMClient with hardware: {config['detected_hardware']['name']}")
