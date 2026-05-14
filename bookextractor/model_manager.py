@@ -1,6 +1,22 @@
 import logging
+import os
 import threading
 from typing import Any
+
+try:
+    from vllm import LLM
+except ImportError:
+
+    class _LLMStub:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        def generate(self, *_args: Any, **_kwargs: Any) -> Any:
+            return []
+
+    LLM = _LLMStub  # type: ignore
+
+from .hardware import get_vllm_config
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +65,6 @@ class ModelManager:
         self,
         model_id: str | None = None,
         max_model_len: int = 4096,
-        vllm_config: dict[str, Any] | None = None,
     ) -> Any:
         """Get the existing model or initialize a new one.
 
@@ -60,10 +75,7 @@ class ModelManager:
             if self._model is not None:
                 return self._model
 
-            from .hardware import get_vllm_config
-
-            if vllm_config is None:
-                vllm_config = get_vllm_config()
+            config = get_vllm_config()
 
             if model_id is None:
                 from .models_registry import AVAILABLE_MODELS, get_cached_models
@@ -77,11 +89,7 @@ class ModelManager:
                     model_id = "Qwen/Qwen2.5-VL-7B-Instruct"
                     logger.info(f"No cached model found. Using default: {model_id}")
 
-            import os
-
-            try:
-                from vllm import LLM
-            except ImportError:
+            if not isinstance(LLM, type) or LLM.__name__ == "_LLMStub":
                 raise RuntimeError(
                     "vLLM is not installed. For LLM-based extraction (PDF, text files), "
                     "install the ML dependencies:\n"
@@ -92,20 +100,20 @@ class ModelManager:
 
             logger.info(f"Initializing model: {model_id}")
             logger.info(
-                f"Applying vLLM config: dtype={vllm_config['dtype']}, "
-                f"tp_size={vllm_config['tensor_parallel_size']}, "
-                f"memory_util={vllm_config['gpu_memory_utilization']}"
+                f"Applying vLLM config: dtype={config['dtype']}, "
+                f"tp_size={config['tensor_parallel_size']}, "
+                f"memory_util={config['gpu_memory_utilization']}"
             )
 
             if "VLLM_TARGET_DEVICE" not in os.environ:
-                os.environ["VLLM_TARGET_DEVICE"] = vllm_config["device"]
+                os.environ["VLLM_TARGET_DEVICE"] = config["device"]
 
             self._model = LLM(
                 model=model_id,
-                tensor_parallel_size=vllm_config["tensor_parallel_size"],
-                dtype=vllm_config["dtype"],
+                tensor_parallel_size=config["tensor_parallel_size"],
+                dtype=config["dtype"],
                 max_model_len=max_model_len,
-                gpu_memory_utilization=vllm_config["gpu_memory_utilization"],
+                gpu_memory_utilization=config["gpu_memory_utilization"],
                 trust_remote_code=True,
             )
             self._model_id = model_id

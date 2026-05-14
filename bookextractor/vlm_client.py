@@ -6,48 +6,41 @@ from typing import Any, cast
 from PIL import Image
 
 try:
-    from vllm import LLM, SamplingParams
+    from vllm import SamplingParams
 except ImportError:
-    # Fallback for linting/testing in slim environments
+
     class _SamplingParamsStub:
         def __init__(self, **kwargs: Any) -> None:
             pass
 
-    class _LLMStub:
-        def __init__(self, **kwargs: Any) -> None:
-            pass
-
-        def generate(self, *_args: Any, **_kwargs: Any) -> Any:
-            return []
-
     SamplingParams = _SamplingParamsStub  # type: ignore
-    LLM = _LLMStub  # type: ignore
 
-from .hardware import get_vllm_config
+from .model_manager import ModelManager
 from .prompts import IMAGE_ANALYSIS_PROMPT
 
 logger = logging.getLogger(__name__)
 
 
 class VLMClient:
-    """
-    Unified wrapper for Gemma/Qwen-VL vLLM inference.
-    Handles hardware-optimized initialization and provides methods for text and vision tasks.
+    """Unified wrapper for Gemma/Qwen-VL vLLM inference.
+
+    Delegates model lifecycle management (loading, caching, thread-safe
+    access) to ModelManager. Use get_instance() for the shared singleton.
     """
 
     _instance: "VLMClient | None" = None
-    _llm: Any = None
 
     def __init__(self, model_id: str | None = None, max_model_len: int = 4096):
-        """
-        Initialize the VLMClient. Note: Use get_instance() for shared LLM resource.
-        """
-        if VLMClient._llm is None:
-            self.model_id = (
-                model_id or os.getenv("VLLM_MODEL_ID") or os.getenv("VLLM_MODEL") or self._detect_cached_model()
-            )
-            self.max_model_len = max_model_len
-            self._initialize_llm()
+        """Initialize the VLMClient. Note: Use get_instance() for shared singleton."""
+        self.model_id = (
+            model_id or os.getenv("VLLM_MODEL_ID") or os.getenv("VLLM_MODEL") or self._detect_cached_model()
+        )
+        self.max_model_len = max_model_len
+        self._model_manager = ModelManager.get_instance()
+        self._model_manager.get_or_create(
+            model_id=self.model_id,
+            max_model_len=self.max_model_len,
+        )
 
     @staticmethod
     def _detect_cached_model() -> str:
@@ -78,48 +71,16 @@ class VLMClient:
             cls._instance = cls(model_id=model_id, max_model_len=max_model_len)
         return cls._instance
 
-    def _initialize_llm(self) -> None:
-        """Initialize vLLM engine with hardware-optimized configuration."""
-        if not isinstance(LLM, type) or LLM.__name__ == "_LLMStub":
-            raise RuntimeError(
-                "vLLM is not installed. For LLM-based extraction (PDF, text files), "
-                "install the ML dependencies:\n"
-                "  uv pip install -e '.[ml]'\n"
-                "or\n"
-                "  uv sync --extra ml"
-            )
-
-        config = get_vllm_config()
-
-        logger.info(f"Initializing VLMClient with hardware: {config['detected_hardware']['name']}")
-        logger.info(
-            f"Applying vLLM config: dtype={config['dtype']}, "
-            f"tp_size={config['tensor_parallel_size']}, "
-            f"memory_util={config['gpu_memory_utilization']}"
-        )
-
-        # Set environment variable to force device type only if not already configured
-        if "VLLM_TARGET_DEVICE" not in os.environ:
-            os.environ["VLLM_TARGET_DEVICE"] = config["device"]
-
-        VLMClient._llm = LLM(
-            model=self.model_id,
-            tensor_parallel_size=config["tensor_parallel_size"],
-            dtype=config["dtype"],
-            max_model_len=self.max_model_len,
-            gpu_memory_utilization=config["gpu_memory_utilization"],
-            trust_remote_code=True,
-        )
-
     def generate(self, prompts: list[str], sampling_params: Any = None) -> list[Any]:
         """Generate text from one or more prompts."""
         if sampling_params is None:
             sampling_params = SamplingParams(temperature=0.7, max_tokens=512)
 
-        if VLMClient._llm is None:
+        model = self._model_manager.get_model()
+        if model is None:
             raise RuntimeError("vLLM engine not initialized")
 
-        return cast(list[Any], VLMClient._llm.generate(prompts, sampling_params))
+        return cast(list[Any], model.generate(prompts, sampling_params))
 
     async def describe_image(self, image_path: str) -> dict[str, Any]:
         """Generate a rich description for an image using vLLM multimodal inference."""
@@ -127,7 +88,8 @@ class VLMClient:
 
         prompt_text = IMAGE_ANALYSIS_PROMPT
 
-        if VLMClient._llm is None:
+        model = self._model_manager.get_model()
+        if model is None:
             raise RuntimeError("vLLM engine not initialized")
 
         sampling_params = SamplingParams(temperature=0.2, max_tokens=512, stop=["```"])
@@ -136,7 +98,7 @@ class VLMClient:
             "multi_modal_data": {"image": image},
         }
 
-        outputs = VLMClient._llm.generate([inputs], sampling_params)
+        outputs = model.generate([inputs], sampling_params)
         text_out = outputs[0].outputs[0].text.strip()
 
         start = text_out.find("{")
