@@ -24,6 +24,7 @@ except ImportError:
     LLM = _LLMStub  # type: ignore
 
 from .hardware import get_vllm_config
+from .prompts import IMAGE_ANALYSIS_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -124,13 +125,7 @@ class VLMClient:
         """Generate a rich description for an image using vLLM multimodal inference."""
         image = Image.open(image_path).convert("RGB")
 
-        prompt_text = (
-            "Analyze this image. Return ONLY a valid JSON object with the following keys: "
-            "'description' (string, visual description), 'text_content' (string, any visible text, or null), "
-            "'language' (string, detected language, or null), "
-            "'scene_classification' (string, e.g., 'document', 'nature', 'diagram'), "
-            "'entities' (list of dicts with 'name' and 'type')."
-        )
+        prompt_text = IMAGE_ANALYSIS_PROMPT
 
         if VLMClient._llm is None:
             raise RuntimeError("vLLM engine not initialized")
