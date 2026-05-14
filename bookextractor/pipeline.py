@@ -258,8 +258,6 @@ JSON:
             return {}
         text_out = ""
         try:
-            if self.vlm_client is None:
-                return {}
             sampling_params = SamplingParams(temperature=0.1, max_tokens=512, stop=["```"])
             outputs = self.vlm_client.generate([prompt], sampling_params)
             text_out = outputs[0].outputs[0].text.strip()
