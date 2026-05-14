@@ -16,6 +16,7 @@ except ImportError:
 
     SamplingParams = _SamplingParamsStub  # type: ignore
 
+from .content_detector import detect_content_type
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
 from .models import (
@@ -125,33 +126,8 @@ class ExtractionPipeline:
             pass
         return await self.extract_from_text(content, benchmark=benchmark, lang=lang)
 
-    def _detect_content_type(self, text: str) -> str:
-        """Detect if content is a magazine/periodical or book."""
-        text_lower = text.lower()
-
-        # Magazine indicators (English and Telugu)
-        magazine_patterns = [
-            "మాసపత్రిక",  # monthly magazine (Telugu)
-            "సంచిక",  # issue (Telugu)
-            "చందా",  # subscription (Telugu)
-            "ఏజంట్లు",  # agents (Telugu)
-            "magazine",
-            "issue",
-            "vol.",
-            "no.",
-            "subscription",
-            "monthly",
-            "periodical",
-        ]
-
-        for pattern in magazine_patterns:
-            if pattern in text_lower:
-                return "magazine"
-
-        return "book"
-
     async def extract_from_text(self, text: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
-        content_type = self._detect_content_type(text)
+        content_type = detect_content_type(text)
 
         if content_type == "magazine":
             return await self._extract_magazine_metadata(text, benchmark=benchmark, lang=lang)

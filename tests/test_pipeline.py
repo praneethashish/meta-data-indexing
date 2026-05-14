@@ -401,11 +401,9 @@ async def test_extract_from_text_magazine_json_input(mock_vlm_client, tmp_path):
 
 
 def test_detect_content_type():
-    with patch.object(ExtractionPipeline, "__init__", lambda *_: None):
-        pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
-        pipeline.vlm_client = None
+    from bookextractor.content_detector import detect_content_type
 
-        assert pipeline._detect_content_type("మాసపత్రిక విషయాలు") == "magazine"
-        assert pipeline._detect_content_type("సంచిక 2 నంపుటి") == "magazine"
-        assert pipeline._detect_content_type("subscription monthly") == "magazine"
-        assert pipeline._detect_content_type("This is a normal book about Python") == "book"
+    assert detect_content_type("మాసపత్రిక విషయాలు") == "magazine"
+    assert detect_content_type("సంచిక 2 నంపుటి") == "magazine"
+    assert detect_content_type("subscription monthly") == "magazine"
+    assert detect_content_type("This is a normal book about Python") == "book"
