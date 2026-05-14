@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import threading
 import time
 
 from celery import Celery
@@ -21,6 +22,20 @@ _pipeline_no_vlm = None
 UPLOAD_DIR = os.getenv("BOOKEXTRACTOR_UPLOAD_DIR", "uploads")
 STALE_FILE_THRESHOLD = 86400  # 24 hours in seconds
 
+# In-flight file tracking to prevent cleanup from deleting active files
+_in_flight_files: set[str] = set()
+_in_flight_lock = threading.Lock()
+
+
+def _register_in_flight(filepath: str) -> None:
+    with _in_flight_lock:
+        _in_flight_files.add(filepath)
+
+
+def _unregister_in_flight(filepath: str) -> None:
+    with _in_flight_lock:
+        _in_flight_files.discard(filepath)
+
 
 @worker_ready.connect
 def cleanup_stale_uploads(**_kwargs):
@@ -30,6 +45,9 @@ def cleanup_stale_uploads(**_kwargs):
     for filename in os.listdir(UPLOAD_DIR):
         filepath = os.path.join(UPLOAD_DIR, filename)
         try:
+            with _in_flight_lock:
+                if filepath in _in_flight_files:
+                    continue
             if os.path.isfile(filepath) and (now - os.path.getmtime(filepath)) > STALE_FILE_THRESHOLD:
                 os.remove(filepath)
                 logger.info(f"Removed stale upload: {filepath}")
@@ -53,11 +71,12 @@ def get_pipeline(load_vlm: bool = True):
 @celery_app.task(name="bookextractor.extract_pdf", bind=True)
 def extract_pdf_task(self, pdf_path: str, lang: str = "en", benchmark: bool = False):  # noqa: ARG001
     """Celery task for PDF extraction."""
+    _register_in_flight(pdf_path)
     try:
-        # Note: currently process_pdf calls extract_from_text (which needs LLM)
         p = get_pipeline(load_vlm=True)
         return asyncio.run(p.process_pdf(pdf_path, benchmark=benchmark, lang=lang))
     finally:
+        _unregister_in_flight(pdf_path)
         if os.path.exists(pdf_path):
             os.remove(pdf_path)
 
@@ -65,10 +84,12 @@ def extract_pdf_task(self, pdf_path: str, lang: str = "en", benchmark: bool = Fa
 @celery_app.task(name="bookextractor.extract_image", bind=True)
 def extract_image_task(self, image_path: str, benchmark: bool = False, use_vlm: bool = False):  # noqa: ARG001
     """Celery task for image extraction."""
+    _register_in_flight(image_path)
     try:
         p = get_pipeline(load_vlm=use_vlm)
         return asyncio.run(p.process_image(image_path, benchmark=benchmark))
     finally:
+        _unregister_in_flight(image_path)
         if os.path.exists(image_path):
             os.remove(image_path)
 
@@ -76,11 +97,11 @@ def extract_image_task(self, image_path: str, benchmark: bool = False, use_vlm: 
 @celery_app.task(name="bookextractor.extract_text", bind=True)
 def extract_text_task(self, file_path: str, benchmark: bool = False, lang: str = "en"):  # noqa: ARG001
     """Celery task for text/json file extraction."""
-
+    _register_in_flight(file_path)
     try:
-        # Needs LLM for semantic extraction
         p = get_pipeline(load_vlm=True)
         return asyncio.run(p.process_text_file(file_path, benchmark=benchmark, lang=lang))
     finally:
+        _unregister_in_flight(file_path)
         if os.path.exists(file_path):
             os.remove(file_path)
