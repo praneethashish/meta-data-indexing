@@ -15,8 +15,8 @@ celery_app = Celery("bookextractor")
 celery_app.config_from_object("bookextractor.celery_config")
 
 # Singleton pipeline instances
-_pipeline_with_llm = None
-_pipeline_no_llm = None
+_pipeline_with_vlm = None
+_pipeline_no_vlm = None
 
 UPLOAD_DIR = os.getenv("BOOKEXTRACTOR_UPLOAD_DIR", "uploads")
 STALE_FILE_THRESHOLD = 86400  # 24 hours in seconds
@@ -37,17 +37,17 @@ def cleanup_stale_uploads(**_kwargs):
             logger.exception(f"Failed to remove stale file: {filepath}")
 
 
-def get_pipeline(load_llm: bool = True):
+def get_pipeline(load_vlm: bool = True):
     """Lazy-load the extraction pipeline within the worker process."""
-    global _pipeline_with_llm, _pipeline_no_llm
-    if load_llm:
-        if _pipeline_with_llm is None:
-            _pipeline_with_llm = ExtractionPipeline(load_llm=True)
-        return _pipeline_with_llm
+    global _pipeline_with_vlm, _pipeline_no_vlm
+    if load_vlm:
+        if _pipeline_with_vlm is None:
+            _pipeline_with_vlm = ExtractionPipeline(load_vlm=True)
+        return _pipeline_with_vlm
     else:
-        if _pipeline_no_llm is None:
-            _pipeline_no_llm = ExtractionPipeline(load_llm=False)
-        return _pipeline_no_llm
+        if _pipeline_no_vlm is None:
+            _pipeline_no_vlm = ExtractionPipeline(load_vlm=False)
+        return _pipeline_no_vlm
 
 
 @celery_app.task(name="bookextractor.extract_pdf", bind=True)
@@ -55,7 +55,7 @@ def extract_pdf_task(self, pdf_path: str, lang: str = "en", benchmark: bool = Fa
     """Celery task for PDF extraction."""
     try:
         # Note: currently process_pdf calls extract_from_text (which needs LLM)
-        p = get_pipeline(load_llm=True)
+        p = get_pipeline(load_vlm=True)
         return asyncio.run(p.process_pdf(pdf_path, benchmark=benchmark, lang=lang))
     finally:
         if os.path.exists(pdf_path):
@@ -66,7 +66,7 @@ def extract_pdf_task(self, pdf_path: str, lang: str = "en", benchmark: bool = Fa
 def extract_image_task(self, image_path: str, benchmark: bool = False, use_vlm: bool = False):  # noqa: ARG001
     """Celery task for image extraction."""
     try:
-        p = get_pipeline(load_llm=use_vlm)
+        p = get_pipeline(load_vlm=use_vlm)
         return asyncio.run(p.process_image(image_path, benchmark=benchmark))
     finally:
         if os.path.exists(image_path):
@@ -79,7 +79,7 @@ def extract_text_task(self, file_path: str, benchmark: bool = False, lang: str =
 
     try:
         # Needs LLM for semantic extraction
-        p = get_pipeline(load_llm=True)
+        p = get_pipeline(load_vlm=True)
         return asyncio.run(p.process_text_file(file_path, benchmark=benchmark, lang=lang))
     finally:
         if os.path.exists(file_path):

@@ -47,10 +47,10 @@ DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "
 
 
 class ExtractionPipeline:
-    def __init__(self, model_id: str | None = None, max_model_len: int = 4096, load_llm: bool = True):
+    def __init__(self, model_id: str | None = None, max_model_len: int = 4096, load_vlm: bool = True):
         self.llm: Any = None
         self.vlm_client: VLMClient | None = None
-        if load_llm:
+        if load_vlm:
             self.vlm_client = VLMClient.get_instance(model_id=model_id, max_model_len=max_model_len)
             self.llm = VLMClient._llm
 

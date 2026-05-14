@@ -249,7 +249,7 @@ def test_get_vision_pipeline_returns_pipeline():
     with patch("bookextractor.main.ExtractionPipeline") as mock_class:
         mock_class.return_value = MagicMock()
         pipeline = get_vision_pipeline()
-        mock_class.assert_called_once_with(load_llm=False)
+        mock_class.assert_called_once_with(load_vlm=False)
         assert pipeline is not None
 
     get_vision_pipeline.cache_clear()

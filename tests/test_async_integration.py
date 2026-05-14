@@ -160,20 +160,20 @@ def test_get_pipeline_lazy_loading():
         # Clear global state for test
         import bookextractor.tasks as tasks
 
-        tasks._pipeline_with_llm = None
-        tasks._pipeline_no_llm = None
+        tasks._pipeline_with_vlm = None
+        tasks._pipeline_no_vlm = None
 
         # Test with LLM
-        p1 = get_pipeline(load_llm=True)
-        mock_ep.assert_called_with(load_llm=True)
-        p2 = get_pipeline(load_llm=True)
+        p1 = get_pipeline(load_vlm=True)
+        mock_ep.assert_called_with(load_vlm=True)
+        p2 = get_pipeline(load_vlm=True)
         assert p1 == p2
         assert mock_ep.call_count == 1
 
         # Test without LLM
-        p3 = get_pipeline(load_llm=False)
-        mock_ep.assert_called_with(load_llm=False)
-        p4 = get_pipeline(load_llm=False)
+        p3 = get_pipeline(load_vlm=False)
+        mock_ep.assert_called_with(load_vlm=False)
+        p4 = get_pipeline(load_vlm=False)
         assert p3 == p4
         assert mock_ep.call_count == 2
 

@@ -32,7 +32,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @lru_cache
 def get_vision_pipeline():
-    return ExtractionPipeline(load_llm=False)
+    return ExtractionPipeline(load_vlm=False)
 
 
 @app.get("/health")
@@ -118,7 +118,7 @@ async def _extract_file(
 ) -> None:
     filename = input_file.lower()
     is_image = filename.endswith(IMAGE_EXTENSIONS)
-    p = ExtractionPipeline(max_model_len=max_model_len, load_llm=(not is_image) or use_vlm)
+    p = ExtractionPipeline(max_model_len=max_model_len, load_vlm=(not is_image) or use_vlm)
 
     if filename.endswith(".pdf"):
         result = await p.process_pdf(input_file, benchmark=benchmark, lang=lang.value)
