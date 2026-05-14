@@ -14,8 +14,9 @@ A production-ready Python package for extracting structured metadata from scanne
 - **Async task queue**: Celery + Redis for background processing with GPU/CPU worker separation
 - **Auto hardware detection**: Optimizes vLLM config for NVIDIA GPU, TPU, Apple Silicon, or CPU
 - **Magazine detection**: Auto-detects magazine vs book content with specialized extraction prompts
-- **ISBN validation**: Regex extraction + checksum validation + Open Library API lookup
+- **ISBN validation**: Regex extraction + checksum validation + Open Library API lookup (with retry)
 - **Model management**: Interactive CLI for downloading, listing, and removing cached models
+- **Production hardening**: Lifecycle-managed VLM, upload size limits, safe file cleanup, retry logic
 
 ## Installation
 
@@ -84,7 +85,7 @@ uv run bookextractor api --host 0.0.0.0 --port 8000
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
-| `/extract` | POST | Synchronous extraction |
+| `/extract` | POST | Synchronous extraction (images only, max 500MB) |
 | `/extract/async` | POST | Submit async job, returns `job_id` |
 | `/jobs/{job_id}` | GET | Poll job status/result |
 
@@ -149,14 +150,14 @@ docker compose logs -f model-downloader
 ## Architecture
 
 ```
-Client → FastAPI → Redis Broker → Celery Workers
-                          ├── worker-gpu (vlm_queue) → vLLM + vParse
-                          └── worker-cpu (default_queue) → PIL + piexif
+Client → FastAPI (lifespan-managed VLM) → Redis Broker → Celery Workers
+                                      ├── worker-gpu (vlm_queue) → vLLM + vParse
+                                      └── worker-cpu (default_queue) → PIL + piexif
 ```
 
 ### Extraction Pipeline
 
-1. **PDF**: vParse OCR → text cleaning → content type detection → LLM extraction → ISBN validation → Open Library lookup → confidence scoring
+1. **PDF**: vParse OCR → text extraction (transcription → segments → legacy fallback) → content type detection → LLM extraction → ISBN validation → Open Library lookup (with retry) → confidence scoring
 2. **Image**: PIL metadata extraction → EXIF parsing (camera, GPS, date, lens, DPI)
 3. **Text/JSON**: Direct LLM semantic extraction (supports pre-OCR'd JSON with `transcription` field)
 
@@ -192,8 +193,11 @@ Client → FastAPI → Redis Broker → Celery Workers
 | `BOOKEXTRACTOR_UPLOAD_DIR` | Upload directory | `uploads` |
 | `VLLM_DEVICE` | Target device: cuda, tpu, mps, cpu | Auto-detected |
 | `VLLM_DTYPE` | Model precision | Auto-optimized |
-| `VLLM_GPU_MEMORY_UTILIZATION` | GPU memory fraction (0.0-1.0) | Auto-optimized |
+| `VLLM_GPU_MEMORY_UTILIZATION` | GPU memory fraction (0.0-1.0) | `0.90` |
 | `VLLM_TENSOR_PARALLEL_SIZE` | Number of GPUs (or `auto`) | Auto-optimized |
+| `VLLM_MAX_MODEL_LEN` | Max context window for vLLM | `16384` |
+| `MAX_BOOK_TEXT_CHARS` | Max chars fed to LLM for book extraction | `60000` |
+| `MAX_MAGAZINE_TEXT_CHARS` | Max chars fed to LLM for magazine extraction | `15000` |
 
 ## Development
 

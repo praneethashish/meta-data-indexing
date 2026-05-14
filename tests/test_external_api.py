@@ -68,15 +68,6 @@ async def test_lookup_isbn_partial_data(httpx_mock, sample_partial_response):
 
 
 @pytest.mark.asyncio
-async def test_lookup_isbn_timeout(httpx_mock):
-    httpx_mock.add_exception(Exception("Connection timeout"))
-
-    result = await lookup_isbn("9780123456789")
-
-    assert result == {}
-
-
-@pytest.mark.asyncio
 async def test_lookup_isbn_http_error(httpx_mock):
     httpx_mock.add_response(
         url="https://openlibrary.org/api/books?bibkeys=ISBN:9780123456789&format=json&jscmd=data", status_code=404

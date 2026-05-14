@@ -35,32 +35,29 @@ def mock_llm():
         yield MockLLM
 
 
-def _reset_vlm():
-    VLMClient._instance = None
-    VLMClient._llm = None
-
-
 @pytest.mark.skipif(_SamplingParams is None, reason="vllm not installed")
-def test_vlm_client_singleton(mock_llm):  # noqa: ARG001
-    _reset_vlm()
-    client1 = VLMClient.get_instance()
-    client2 = VLMClient.get_instance()
+def test_vlm_client_direct_instantiation(mock_llm):  # noqa: ARG001
+    client1 = VLMClient()
+    client1.startup()
+    client2 = VLMClient()
+    client2.startup()
 
-    assert client1 is client2
-    assert VLMClient._llm is not None
+    assert client1 is not client2
+    assert client1._llm is not None
+    assert client2._llm is not None
 
 
 @pytest.mark.skipif(_SamplingParams is None, reason="vllm not installed")
 @pytest.mark.asyncio
 async def test_vlm_client_generate(mock_llm):  # noqa: ARG001
-    _reset_vlm()
-    client = VLMClient.get_instance()
+    client = VLMClient()
+    client.startup()
 
     mock_instance = MagicMock()
     mock_output = MagicMock()
     mock_output.text = "generated text"
     mock_instance.generate.return_value = [MagicMock(outputs=[mock_output])]
-    VLMClient._llm = mock_instance
+    client._llm = mock_instance
 
     result = client.generate(["prompt"])
     assert result is not None
@@ -74,8 +71,6 @@ async def test_vlm_client_generate(mock_llm):  # noqa: ARG001
 @pytest.mark.asyncio
 async def test_vlm_client_describe_image(tmp_path):
     """Test describe_image VLM multimodal inference."""
-    _reset_vlm()
-
     image_path = tmp_path / "test.jpg"
     image_path.write_bytes(b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00")
 
@@ -88,27 +83,24 @@ async def test_vlm_client_describe_image(tmp_path):
     ]
     mock_llm_instance.generate.return_value = [mock_output]
 
-    VLMClient._llm = mock_llm_instance
-
     client = VLMClient.__new__(VLMClient)
-    client.vlm_client = None
+    client._llm = mock_llm_instance
     client.model_id = "test-model"
     client.max_model_len = 4096
 
     with patch("bookextractor.vlm_client.Image") as mock_pil_image:
-        mock_pil_image.open.return_value.convert.return_value = MagicMock()
+        mock_img = MagicMock()
+        mock_img.convert.return_value = MagicMock()
+        mock_pil_image.open.return_value.__enter__ = MagicMock(return_value=mock_img)
+        mock_pil_image.open.return_value.__exit__ = MagicMock(return_value=False)
         result = await client.describe_image(str(image_path))
 
     assert "description" in result
     assert result["description"] == "A test image"
     assert result["scene_classification"] == "document"
 
-    _reset_vlm()
-
 
 def test_vlm_client_generate_without_init():
-    _reset_vlm()
-
     client = VLMClient.__new__(VLMClient)
     client._llm = None
 
@@ -117,8 +109,6 @@ def test_vlm_client_generate_without_init():
 
 
 def test_vlm_client_auto_detect_cached():
-    _reset_vlm()
-
     with patch("bookextractor.models_registry.get_cached_models", return_value=[]):
         result = VLMClient._detect_cached_model()
         assert result == "Qwen/Qwen2.5-VL-7B-Instruct"
@@ -129,8 +119,6 @@ def test_vlm_client_auto_detect_cached():
 
 
 def test_vllm_target_device_env_guard(monkeypatch):
-    _reset_vlm()
-
     monkeypatch.setenv("VLLM_TARGET_DEVICE", "custom_tpu_device")
 
     class SingeLLM:
@@ -150,4 +138,10 @@ def test_vllm_target_device_env_guard(monkeypatch):
 
         assert os.environ["VLLM_TARGET_DEVICE"] == "custom_tpu_device"
 
-    _reset_vlm()
+
+def test_vlm_client_startup_shutdown(mock_llm):  # noqa: ARG001
+    client = VLMClient()
+    client.startup()
+    assert client._llm is not None
+    client.shutdown()
+    assert client._llm is None

@@ -54,7 +54,7 @@
 
 **Gemma-4 vLLM**
 
-> Google's Gemma-4 4B parameter instruction-tuned model via vLLM inference engine. A unified multimodal model that handles both text semantic extraction and image vision understanding on GPU.
+> Google's Gemma-4 instruction-tuned model via vLLM inference engine. A multimodal model that handles both text semantic extraction and image vision understanding on GPU.
 
 **dots.mocr**
 
@@ -106,7 +106,7 @@
 
 **Gemma-4**
 
-> Google's open-source text-only LLM (Large Language Model), used in this project for semantic metadata extraction via vLLM + PyTorch.
+> Google's open-source multimodal LLM (Large Language Model), used in this project for semantic metadata extraction and image understanding via vLLM + PyTorch.
 
 **GGUF** (GPT-Generated Unified Format)
 
@@ -146,11 +146,11 @@
 
 **llama-cpp**
 
-> A C/C++ implementation of LLaMA for efficient inference, supporting GGUF model files. (Note: Project uses vLLM instead)
+> A C/C++ implementation of LLaMA for efficient inference, supporting GGUF model files. (Note: Project migrated to vLLM for GPU-accelerated inference)
 
 **vLLM**
 
-> High-throughput, GPU-accelerated LLM inference engine developed by UC Berkeley. Used in this project for Gemma-4 inference with automatic batching and CUDA optimization.
+> High-throughput, GPU-accelerated LLM inference engine developed by UC Berkeley. Used in this project for Gemma/Qwen model inference with automatic batching, CUDA optimization, and lifecycle-managed initialization.
 
 ---
 
@@ -325,15 +325,11 @@
 | `.pdf`          | Portable Document Format   |
 | `.md`           | Markdown (text)            |
 | `.json`         | JavaScript Object Notation |
+| `.txt`          | Plain text                 |
 | `.jpg`, `.jpeg` | JPEG Image                 |
 | `.png`          | Portable Network Graphics  |
-| `.tiff`         | Tagged Image File Format   |
 | `.webp`         | WebP Image                 |
-| `.mp3`          | MP3 Audio                  |
-| `.wav`          | WAV Audio                  |
-| `.m4a`          | MPEG-4 Audio               |
-| `.mp4`          | MPEG-4 Video               |
-| `.mkv`          | Matroska Video             |
+| `.tiff`, `.tif` | Tagged Image File Format   |
 
 ---
 

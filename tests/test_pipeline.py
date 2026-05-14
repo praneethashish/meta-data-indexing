@@ -237,10 +237,12 @@ async def test_extract_from_text_benchmark_mode(mock_vlm_client, sample_book_tex
             assert "text_snippet" in result["debug"]
 
 
-@patch("bookextractor.vlm_client.VLMClient.get_instance")
-def test_pipeline_init(mock_vlm_instance):
+@patch("bookextractor.pipeline.VLMClient")
+def test_pipeline_init(mock_vlm_class):
+    mock_vlm_class.return_value = MagicMock()
+    mock_vlm_class._llm = MagicMock()
     _ = ExtractionPipeline(model_id="custom-model")
-    mock_vlm_instance.assert_called_with(model_id="custom-model", max_model_len=4096)
+    mock_vlm_class.assert_called_with(model_id="custom-model", max_model_len=4096)
 
 
 @pytest.mark.asyncio

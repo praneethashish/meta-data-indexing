@@ -17,7 +17,7 @@ def test_hardware_info_command():
 
 def test_extract_unsupported_file(tmp_path):
     # Mock VLMClient to avoid actual initialization
-    with patch("bookextractor.pipeline.VLMClient.get_instance"):
+    with patch("bookextractor.pipeline.VLMClient"):
         bad_file = tmp_path / "test.docx"
         bad_file.write_text("hello")
         result = runner.invoke(cli_app, ["extract", str(bad_file), "out.json"])

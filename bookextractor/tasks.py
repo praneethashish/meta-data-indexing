@@ -10,16 +10,14 @@ from .pipeline import ExtractionPipeline
 
 logger = logging.getLogger(__name__)
 
-# Initialize Celery app
 celery_app = Celery("bookextractor")
 celery_app.config_from_object("bookextractor.celery_config")
 
-# Singleton pipeline instances
 _pipeline_with_llm = None
 _pipeline_no_llm = None
 
 UPLOAD_DIR = os.getenv("BOOKEXTRACTOR_UPLOAD_DIR", "uploads")
-STALE_FILE_THRESHOLD = 86400  # 24 hours in seconds
+STALE_FILE_THRESHOLD = 86400
 
 
 @worker_ready.connect
@@ -54,12 +52,14 @@ def get_pipeline(load_llm: bool = True):
 def extract_pdf_task(self, pdf_path: str, lang: str = "en", benchmark: bool = False):  # noqa: ARG001
     """Celery task for PDF extraction."""
     try:
-        # Note: currently process_pdf calls extract_from_text (which needs LLM)
         p = get_pipeline(load_llm=True)
         return asyncio.run(p.process_pdf(pdf_path, benchmark=benchmark, lang=lang))
     finally:
-        if os.path.exists(pdf_path):
-            os.remove(pdf_path)
+        try:
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+        except OSError:
+            logger.exception(f"Failed to clean up: {pdf_path}")
 
 
 @celery_app.task(name="bookextractor.extract_image", bind=True)
@@ -69,18 +69,22 @@ def extract_image_task(self, image_path: str, benchmark: bool = False, use_vlm: 
         p = get_pipeline(load_llm=use_vlm)
         return asyncio.run(p.process_image(image_path, benchmark=benchmark))
     finally:
-        if os.path.exists(image_path):
-            os.remove(image_path)
+        try:
+            if os.path.exists(image_path):
+                os.remove(image_path)
+        except OSError:
+            logger.exception(f"Failed to clean up: {image_path}")
 
 
 @celery_app.task(name="bookextractor.extract_text", bind=True)
 def extract_text_task(self, file_path: str, benchmark: bool = False, lang: str = "en"):  # noqa: ARG001
     """Celery task for text/json file extraction."""
-
     try:
-        # Needs LLM for semantic extraction
         p = get_pipeline(load_llm=True)
         return asyncio.run(p.process_text_file(file_path, benchmark=benchmark, lang=lang))
     finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except OSError:
+            logger.exception(f"Failed to clean up: {file_path}")

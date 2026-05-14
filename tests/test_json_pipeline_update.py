@@ -11,7 +11,7 @@ from bookextractor.pipeline import ExtractionPipeline
 @pytest.fixture
 def pipeline():
     # Mock VLMClient to avoid loading actual model during tests
-    with patch("bookextractor.vlm_client.VLMClient.get_instance"):
+    with patch("bookextractor.pipeline.VLMClient"):
         p = ExtractionPipeline()
         p.vlm_client = MagicMock()
         p.llm = MagicMock()

@@ -3,8 +3,9 @@ import json
 import os
 import pathlib
 import uuid
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from enum import Enum
-from functools import lru_cache
 
 import typer
 import uvicorn
@@ -12,6 +13,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 
 from .pipeline import ExtractionPipeline
 from .tasks import celery_app, extract_image_task, extract_pdf_task, extract_text_task
+from .vlm_client import VLMClient
 
 
 class OCRLanguage(str, Enum):
@@ -22,17 +24,32 @@ class OCRLanguage(str, Enum):
     HINDI = "devanagari"
 
 
-app = FastAPI()
+MAX_UPLOAD_SIZE = 500 * 1024 * 1024
+UPLOAD_DIR = os.getenv("BOOKEXTRACTOR_UPLOAD_DIR", "uploads")
+
+
+@asynccontextmanager
+async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    vlm = VLMClient(
+        model_id=os.getenv("VLLM_MODEL_ID", "Qwen/Qwen2.5-VL-7B-Instruct"),
+        max_model_len=int(os.getenv("VLLM_MAX_MODEL_LEN", "16384")),
+    )
+    vlm.startup()
+    app.state.vlm_client = vlm
+    yield
+    vlm.shutdown()
+
+
+app = FastAPI(lifespan=app_lifespan)
 cli_app = typer.Typer()
 ALLOWED_EXTENSIONS = (".pdf", ".md", ".json", ".txt", ".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")
-UPLOAD_DIR = os.getenv("BOOKEXTRACTOR_UPLOAD_DIR", "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-@lru_cache
-def get_vision_pipeline():
-    return ExtractionPipeline(load_llm=False)
+def get_vision_pipeline() -> ExtractionPipeline:
+    max_model_len = int(os.getenv("VLLM_MAX_MODEL_LEN", "16384"))
+    return ExtractionPipeline(load_llm=False, max_model_len=max_model_len)
 
 
 @app.get("/health")
@@ -56,13 +73,16 @@ async def extract_async(
     if not filename.endswith(ALLOWED_EXTENSIONS):
         raise HTTPException(status_code=400, detail=f"Unsupported file type. Allowed: {ALLOWED_EXTENSIONS}")
 
-    # Save to persistent upload dir for worker access
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large. Maximum size: 500MB")
+
     file_id = str(uuid.uuid4())
     safe_extension = pathlib.Path(file.filename).suffix.lower()
     save_path = os.path.join(UPLOAD_DIR, f"{file_id}{safe_extension}")
 
     with open(save_path, "wb") as buffer:
-        buffer.write(await file.read())
+        buffer.write(content)
 
     try:
         if filename.endswith(".pdf"):
@@ -158,11 +178,8 @@ async def extract(
         with open(temp_path, "wb") as buffer:
             buffer.write(await file.read())
 
-        try:
-            result = await vision_pipeline.process_image(temp_path)
-            return result
-        finally:
-            pass
+        result = await vision_pipeline.process_image(temp_path)
+        return result
 
 
 @cli_app.callback()
@@ -198,7 +215,7 @@ def extract_command(
     ),
     use_vlm: bool = typer.Option(False, "--vlm", help="Enable VLM analysis for images"),  # noqa: B008
     max_model_len: int = typer.Option(  # noqa: B008
-        4096,
+        int(os.getenv("VLLM_MAX_MODEL_LEN", "16384")),
         "--max-model-len",
         help="Maximum context length (reduce to save VRAM)",
     ),

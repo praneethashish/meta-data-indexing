@@ -1,41 +1,6 @@
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    import fitz
-    from PIL import Image
-
-
-def crop_regions(img: "Image.Image") -> list["Image.Image"]:
-    """
-    Keep top, middle, bottom regions.
-    """
-    w, h = img.size
-    top = img.crop((0, 0, w, h // 4))
-    middle = img.crop((0, h // 4, w, 3 * h // 4))
-    bottom = img.crop((0, 3 * h // 4, w, h))
-    return [top, middle, bottom]
-
-
-def crop_bbox(img: "Image.Image", rect: "fitz.Rect", page_rect: "fitz.Rect") -> "Image.Image":
-    """
-    Crop image using PyMuPDF Rect coordinates.
-    """
-    w, h = img.size
-    pw, ph = page_rect.width, page_rect.height
-
-    # Scale factors
-    sx, sy = w / pw, h / ph
-
-    left = rect.x0 * sx
-    top = rect.y0 * sy
-    right = rect.x1 * sx
-    bottom = rect.y1 * sy
-
-    return img.crop((left, top, right, bottom))
-
-
-def combine_regions(standard_crops: list["Image.Image"], keyword_crops: list["Image.Image"]) -> list["Image.Image"]:
-    return standard_crops + keyword_crops
+from PIL import Image
 
 
 def get_decimal_from_dms(value: tuple[tuple[int, int], tuple[int, int], tuple[int, int]], ref: str) -> float:
@@ -55,8 +20,6 @@ def extract_image_metadata(image_path: str) -> dict[str, Any]:
     """
     Extracts metadata and EXIF data from an image file.
     """
-    from PIL import Image
-
     with Image.open(image_path) as img:
         width, height = img.size
         img_format = img.format
@@ -77,16 +40,13 @@ def extract_image_metadata(image_path: str) -> dict[str, Any]:
 
             exif_dict = piexif.load(img.info.get("exif", b""))
             if exif_dict:
-                # 0th IFD
                 zeroth = exif_dict.get("0th", {})
                 make = zeroth.get(piexif.ImageIFD.Make, b"").decode("utf-8").strip("\x00") or None
                 model = zeroth.get(piexif.ImageIFD.Model, b"").decode("utf-8").strip("\x00") or None
                 metadata["exif_camera_make"] = make
                 metadata["exif_camera_model"] = model
 
-                # Exif IFD
                 exif = exif_dict.get("Exif", {})
-                # Use DateTimeOriginal if available, fallback to DateTime
                 date_taken = exif.get(piexif.ExifIFD.DateTimeOriginal) or zeroth.get(piexif.ImageIFD.DateTime)
                 if date_taken:
                     metadata["exif_date_taken"] = date_taken.decode("utf-8").strip("\x00")
@@ -95,7 +55,6 @@ def extract_image_metadata(image_path: str) -> dict[str, Any]:
 
                 metadata["exif_lens"] = exif.get(piexif.ExifIFD.LensModel, b"").decode("utf-8").strip("\x00") or None
 
-                # GPS IFD
                 gps = exif_dict.get("GPS", {})
                 if gps:
                     lat = gps.get(piexif.GPSIFD.GPSLatitude)

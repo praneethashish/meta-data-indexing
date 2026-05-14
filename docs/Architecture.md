@@ -1,8 +1,7 @@
 # BookExtractor — Architecture Document
 
-**Branch:** `feat/celery-redis-integration` (7 commits ahead of `develop`)
-**Date:** 2026-05-13
-**Status:** Ready for merge review
+**Date:** 2026-05-14
+**Status:** Production-ready (post-refactor)
 
 ---
 
@@ -15,7 +14,7 @@ BookExtractor extracts structured metadata from scanned Telugu/Hindi/English boo
 - **Image extraction** — EXIF/metadata parsing (PIL + piexif)
 - **Text/JSON extraction** — Direct LLM semantic extraction from plain text or pre-OCR'd JSON
 - **Magazine detection** — Auto-detects magazine vs book content, uses different prompts
-- **ISBN validation** — Regex extraction + checksum validation + Open Library API lookup
+- **ISBN validation** — Regex extraction + checksum validation + Open Library API lookup (with retry)
 - **Hardware optimization** — Auto-detects GPU/CPU/TPU/MPS and configures vLLM accordingly
 
 ---
@@ -56,7 +55,7 @@ BookExtractor extracts structured metadata from scanned Telugu/Hindi/English boo
 │  ┌───────────────┐ ┌──────────────┐ ┌──────────────┐                       │
 │  │  VLMClient    │ │  validation  │ │ external_api │                       │
 │  │  (vLLM LLM)   │ │  (ISBN)      │ │ (OpenLibrary)│                       │
-│  │  Singleton    │ │  Regex+Check │ │  HTTP lookup │                       │
+│  │  Lifecycle    │ │  Regex+Check │ │  HTTP+Retry  │                       │
 │  └───────────────┘ └──────────────┘ └──────────────┘                       │
 │                                                                              │
 │  ┌───────────────┐ ┌──────────────┐ ┌──────────────┐ ┌───────────────┐    │
@@ -91,7 +90,7 @@ BookExtractor extracts structured metadata from scanned Telugu/Hindi/English boo
 │                                                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────────────┐  │
 │  │  vParse API  │  │  HuggingFace │  │  Open Library API                │  │
-│  │  (mineru)    │  │  Model Cache │  │  (ISBN validation)               │  │
+│  │  (mineru)    │  │  Model Cache │  │  (ISBN validation + retry)       │  │
 │  │  OCR engine  │  │  ~/.cache/   │  │  https://openlibrary.org         │  │
 │  │  port 8000   │  │  huggingface │  │                                  │  │
 │  └──────────────┘  └──────────────┘  └──────────────────────────────────┘  │
@@ -107,20 +106,28 @@ BookExtractor extracts structured metadata from scanned Telugu/Hindi/English boo
 |-----------|---------|
 | `cli_app` (Typer) | CLI commands: `extract`, `api`, `worker`, `hardware-info`, `model` |
 | `app` (FastAPI) | REST API: `/health`, `/extract` (sync), `/extract/async`, `/jobs/{id}` |
+| `app_lifespan` | Lifecycle manager: creates VLMClient on startup, shuts down on exit |
 | `ALLOWED_EXTENSIONS` | `.pdf`, `.md`, `.json`, `.txt`, `.jpg`, `.jpeg`, `.png`, `.webp`, `.tiff`, `.tif` |
-| `extract_async` | Saves file → routes to correct Celery task → returns `job_id` |
+| `MAX_UPLOAD_SIZE` | 500MB limit on `/extract/async` (HTTP 413 if exceeded) |
+| `extract_async` | Validates size → saves file → routes to correct Celery task → returns `job_id` |
 | `get_job_status` | Polls `celery_app.AsyncResult(job_id)` for status/result |
+| `get_vision_pipeline` | Factory for sync `/extract` endpoint (creates ExtractionPipeline per request) |
 | `model download` | Interactive model picker using `questionary.checkbox` + `snapshot_download` |
 
 ### 3.2 `pipeline.py` — Core Extraction Logic
 | Method | Flow | LLM Required |
 |--------|------|--------------|
-| `process_pdf()` | vParse OCR → text cleaning → `extract_from_text()` | Yes |
+| `process_pdf()` | vParse OCR → text extraction (transcription → segments → legacy) → `extract_from_text()` | Yes |
 | `process_image()` | PIL open → EXIF extraction → `ImageMetadata` | No |
 | `process_text_file()` | Read file → detect JSON with transcription → `extract_from_text()` | Yes |
 | `extract_from_text()` | Detect content type → route to book or magazine extraction | Yes |
 | `_extract_book_metadata()` | ISBN regex → LLM extraction → Open Library lookup → confidence scoring | Yes |
 | `_extract_magazine_metadata()` | LLM magazine prompt → confidence scoring | Yes |
+
+**Text extraction priority in `process_pdf()`:**
+1. `transcription` field (new flat schema)
+2. `segments` array (new flat schema)
+3. Legacy `results → filename → content_list/md_content`
 
 ### 3.3 `tasks.py` — Celery Task Definitions
 | Task | Queue | LLM | Concurrency Target |
@@ -129,7 +136,7 @@ BookExtractor extracts structured metadata from scanned Telugu/Hindi/English boo
 | `extract_image` | `default_queue` | No (`load_llm=False`) | 8 (CPU) |
 | `extract_text` | `vlm_queue` | Yes (`load_llm=True`) | 2 (GPU) |
 
-Pipeline instances are lazy-loaded singletons per worker process.
+Pipeline instances are lazy-loaded per worker process with safe file cleanup (OSError-tolerant).
 
 ### 3.4 `celery_config.py` — Queue Configuration
 ```
@@ -147,10 +154,12 @@ task_time_limit = 3600            # 1 hour hard limit
 ```
 
 ### 3.5 `vlm_client.py` — LLM Wrapper
-- **Singleton pattern** — `VLMClient.get_instance()` ensures one vLLM engine per process
+- **Lifecycle-managed** — `startup()` initializes vLLM engine, `shutdown()` releases resources
+- **No singleton pattern** — each instance owns its own `_llm`
 - **Auto-detects cached model** from HF cache if no model ID provided
 - **Hardware-optimized** via `hardware.get_vllm_config()`
 - Supports Gemma 4, Qwen2.5-VL, Qwen3-VL, Qwen3.5
+- **File-safe** — `describe_image()` uses context manager for PIL image handles
 
 ### 3.6 `hardware.py` — Hardware Detection
 Detection priority: TPU → NVIDIA (torch) → NVIDIA (NVML) → Apple MPS → CPU
@@ -166,20 +175,21 @@ Detection priority: TPU → NVIDIA (torch) → NVIDIA (NVML) → Apple MPS → C
 Env var overrides: `VLLM_DEVICE`, `VLLM_DTYPE`, `VLLM_GPU_MEMORY_UTILIZATION`, `VLLM_TENSOR_PARALLEL_SIZE`
 
 ### 3.7 `models_registry.py` — Model Cache Management
-- **HF_HOME aware** — respects `$HF_HOME` env var (fixed from hardcoded path)
+- **HF_HOME aware** — respects `$HF_HOME` env var
 - Scans `~/.cache/huggingface/hub` for cached models
 - 6 registered models with VRAM requirements
 - CLI commands: `model list`, `model download`, `model remove`, `model cache`
 
 ### 3.8 `vparse_client.py` — vParse OCR Client
 - HTTP POST to vParse API with PDF file + language parameter
-- Returns `content_list` (preferred) or `md_content`
+- Returns `transcription`, `segments`, or legacy `content_list`/`md_content`
 - Timeout: 900s (15 min for large PDFs)
 
 ### 3.9 `models.py` — Pydantic Data Models
 - `BookMetadata` — title, author, publisher, isbn, published_date, confidence
 - `MagazineMetadata` — magazine_name, editor, publisher, issue_date, issue_number, price
 - `ImageMetadata` — dimensions, format, EXIF (camera, GPS, date, lens, DPI)
+- `ImageVLMMetadata` — description, text_content, language, scene_classification, entities
 - `BenchmarkResult` — wraps `ExtractionResult` + debug info
 
 ### 3.10 `validation.py` — ISBN Validation
@@ -188,6 +198,7 @@ Env var overrides: `VLLM_DEVICE`, `VLLM_DTYPE`, `VLLM_GPU_MEMORY_UTILIZATION`, `
 
 ### 3.11 `external_api.py` — Open Library Lookup
 - Async HTTP GET to `openlibrary.org/api/books`
+- **Retry logic** — 3 attempts with exponential backoff (tenacity)
 - Enriches LLM-extracted metadata with authoritative data
 
 ---
@@ -228,7 +239,9 @@ Env var overrides: `VLLM_DEVICE`, `VLLM_DTYPE`, `VLLM_GPU_MEMORY_UTILIZATION`, `
 │    ./uploads:/app/uploads                    (persistent uploads)
 │
 │  Env:
-│    VLLM_MODEL=${VLLM_MODEL_ID:-Qwen/Qwen2.5-VL-7B-Instruct}
+│    VLLM_MODEL_ID=${VLLM_MODEL_ID:-Qwen/Qwen2.5-VL-7B-Instruct}
+│    VLLM_MAX_MODEL_LEN=16384
+│    VLLM_GPU_MEMORY_UTILIZATION=0.90
 │    HF_HOME=/models/huggingface
 │    CELERY_BROKER_URL=redis://redis:6379/0
 │    CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -245,23 +258,24 @@ All services mount `~/.cache/huggingface:/models/huggingface` so models download
 ### 5.1 PDF Extraction (Async)
 ```
 Client → POST /extract/async
+  → Validate file size (max 500MB)
   → Save file to uploads/{uuid}_{filename}
   → extract_pdf_task.delay(path, lang)
   → Redis broker queues to vlm_queue
   → worker-gpu picks up task
-    → get_pipeline(load_llm=True)  [lazy singleton]
+    → get_pipeline(load_llm=True)  [lazy-loaded per worker]
     → parse_pdf_via_vparse(path, lang)  [HTTP to vParse]
     → extract_from_text(text, lang)
       → _detect_content_type(text) → book or magazine
       → _extract_book_metadata() or _extract_magazine_metadata()
         → extract_semantic_fields() / extract_magazine_semantic_fields()  [vLLM]
         → extract_isbn_candidates() [regex]
-        → lookup_isbn() [Open Library API]
+        → lookup_isbn() [Open Library API with retry]
         → calculate_confidence()
     → Return JSON result
   → Redis stores result
   → Client polls GET /jobs/{id}
-  → Cleanup: delete uploaded file
+  → Cleanup: delete uploaded file (OSError-tolerant)
 ```
 
 ### 5.2 Image Extraction (Async)
@@ -274,21 +288,33 @@ Client → POST /extract/async
     → process_image(path)
       → extract_image_metadata(path)  [PIL + piexif]
     → Return JSON result
-  → Cleanup: delete uploaded file
+  → Cleanup: delete uploaded file (OSError-tolerant)
 ```
 
 ### 5.3 CLI Extraction (Sync)
 ```
 bookextractor extract input.pdf output.json --lang te
   → _extract_file()
-  → get_pipeline()  [singleton in process]
+  → ExtractionPipeline()  [direct instantiation]
   → process_pdf() / process_text_file() / process_image()
   → Write JSON to output path
 ```
 
+### 5.4 FastAPI Lifecycle
+```
+Server startup → app_lifespan enters
+  → os.makedirs(UPLOAD_DIR)
+  → VLMClient(model_id=..., max_model_len=...)
+  → vlm.startup()  [initializes vLLM engine]
+  → app.state.vlm_client = vlm
+  → yield (server running)
+Server shutdown → app_lifespan exits
+  → vlm.shutdown()  [releases vLLM resources]
+```
+
 ---
 
-## 6. Merge Readiness Assessment
+## 6. Current State Assessment
 
 ### 6.1 CI Status
 | Check | Status |
@@ -297,31 +323,30 @@ bookextractor extract input.pdf output.json --lang te
 | ruff format | ✅ Pass |
 | mypy | ✅ Pass |
 | vulture | ✅ Pass |
-| pytest (140 tests) | ✅ Pass, 95% coverage |
+| pytest (141 tests) | ✅ Pass |
 | pre-commit hooks | ✅ Pass |
 
-### 6.2 Commits Ahead of develop
-| Commit | Type | Description |
-|--------|------|-------------|
-| `1e7664c` | fix | Improve JSON parsing, increase LLM context window |
-| `4098b82` | test | Fixed linting issues |
-| `f191e77` | fix | Modify CI dependencies to fix pipeline |
-| `2f05deb` | feat | Implement Celery and Redis background task queue |
-| `d1283d6` | fix | Reconcile merge conflicts, repair stale mocks, patch magazine error-handling |
-| `844cb08` | feat | Dynamic model selection and shared Hugging Face cache |
-| `f93a29f` | fix | Remove deprecated resume_download from snapshot_download |
+### 6.2 Recent Refactoring
+| Change | Impact |
+|--------|--------|
+| VLMClient singleton → lifecycle-managed | Eliminates race conditions, enables graceful shutdown |
+| FastAPI lifespan management | Proper resource initialization and cleanup |
+| Upload size limit (500MB) | Prevents OOM attacks |
+| Tenacity retry on ISBN lookup | Handles transient network failures |
+| Safe file cleanup in Celery tasks | Prevents worker crashes on orphaned files |
+| Dynamic env vars for context limits | Runtime-configurable truncation |
+| Dead code removal | Reduced codebase by ~40 lines |
+| Test deps moved to dev group | Cleaner production dependencies |
 
 ### 6.3 Known Issues / Risks
 | Issue | Severity | Status |
 |-------|----------|--------|
-| `vllm` imported at module level in `pipeline.py` | Medium | CPU workers load ~200-300MB extra per process. Lazy import would reduce to ~100MB/process |
-| `Dockerfile.bookextractor` uses CUDA 12.4 but docker-compose sets `HF_HOME=/root/.cache/huggingface/hub` (different from compose bind mount) | Low | Runtime env var `HF_HOME=/models/huggingface` overrides Dockerfile default |
-| `worker-cpu` has `HF_HOME` set but doesn't need it (no LLM) | Cosmetic | No functional impact |
-| `pyproject.toml` has duplicate `pytest-httpx>=0.36.2` entry | Cosmetic | uv handles dedup, no functional impact |
+| `vllm` imported at module level in `pipeline.py` | Medium | CPU workers load ~200-300MB extra per process. Lazy import would reduce overhead |
 | `_extract_file` uses `os.path.dirname(os.path.abspath(output_json))` which fails if output is just a filename | Low | Works for paths with directories, fails for bare filenames |
+| `worker-cpu` has `HF_HOME` set but doesn't need it (no LLM) | Cosmetic | No functional impact |
 
 ### 6.4 Recommendation
-**Ready to merge.** All CI checks pass, 140/140 tests pass at 95% coverage, no blocking issues. The known issues are cosmetic or low-severity optimizations that can be addressed in follow-up PRs.
+**Production-ready.** All CI checks pass, 141/141 tests pass, no blocking issues. Known issues are low-severity optimizations for follow-up.
 
 ---
 
@@ -329,20 +354,20 @@ bookextractor extract input.pdf output.json --lang te
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `bookextractor/main.py` | 383 | CLI + FastAPI entry points |
-| `bookextractor/pipeline.py` | 320 | Core extraction pipeline |
+| `bookextractor/main.py` | 391 | CLI + FastAPI entry points, lifespan management |
+| `bookextractor/pipeline.py` | 353 | Core extraction pipeline |
 | `bookextractor/celery_config.py` | 38 | Celery broker/queue config |
-| `bookextractor/tasks.py` | 64 | Celery task definitions |
-| `bookextractor/vlm_client.py` | 106 | vLLM singleton wrapper |
+| `bookextractor/tasks.py` | 86 | Celery task definitions |
+| `bookextractor/vlm_client.py` | 165 | vLLM lifecycle-managed wrapper |
 | `bookextractor/hardware.py` | 215 | GPU/CPU/TPU detection + vLLM config |
 | `bookextractor/models_registry.py` | 120 | Model cache scanner + registry |
 | `bookextractor/models.py` | 74 | Pydantic data models |
 | `bookextractor/vparse_client.py` | 35 | vParse OCR HTTP client |
-| `bookextractor/external_api.py` | 29 | Open Library ISBN lookup |
-| `bookextractor/validation.py` | 39 | ISBN regex + checksum |
-| `bookextractor/image_utils.py` | 109 | Image metadata + EXIF extraction |
+| `bookextractor/external_api.py` | 39 | Open Library ISBN lookup with retry |
+| `bookextractor/validation.py` | 38 | ISBN regex + checksum |
+| `bookextractor/image_utils.py` | 95 | Image metadata + EXIF extraction |
 | `scripts/setup_models.py` | 44 | Docker model downloader |
-| `docker-compose.yml` | 238 | Service orchestration |
-| `Dockerfile.bookextractor` | 22 | BookExtractor container |
-| `Dockerfile.model-downloader` | — | Model download container |
-| `tests/` | — | 140 tests, 95% coverage |
+| `docker-compose.yml` | 229 | Service orchestration |
+| `Dockerfile.bookextractor` | 28 | BookExtractor container |
+| `Dockerfile.model-downloader` | 2 | Model download container |
+| `tests/` | — | 141 tests |

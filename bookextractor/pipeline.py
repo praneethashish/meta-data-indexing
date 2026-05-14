@@ -39,45 +39,57 @@ DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "
 
 
 class ExtractionPipeline:
+    max_book_chars = int(os.getenv("MAX_BOOK_TEXT_CHARS", "60000"))
+    max_magazine_chars = int(os.getenv("MAX_MAGAZINE_TEXT_CHARS", "15000"))
+
     def __init__(self, model_id: str | None = None, max_model_len: int = 4096, load_llm: bool = True):
         self.llm: Any = None
         self.vlm_client: VLMClient | None = None
+        self.max_book_chars = int(os.getenv("MAX_BOOK_TEXT_CHARS", "60000"))
+        self.max_magazine_chars = int(os.getenv("MAX_MAGAZINE_TEXT_CHARS", "15000"))
         if load_llm:
-            self.vlm_client = VLMClient.get_instance(model_id=model_id, max_model_len=max_model_len)
-            self.llm = VLMClient._llm
+            self.vlm_client = VLMClient(model_id=model_id, max_model_len=max_model_len)
+            self.llm = self.vlm_client._llm
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
-        # Call vParse OCR API with the selected language
         vparse_response = await parse_pdf_via_vparse(pdf_path, lang=lang)
 
-        results = vparse_response.get("results", {})
-        filename = os.path.basename(pdf_path).rsplit(".", 1)[0]
-        result_data = results.get(filename, {})
-
-        # Fallback: if filename key not found, use the first available result
-        if not result_data and results:
-            result_data = results[next(iter(results))]
-
-        # Extract text, preferring content_list (cleaner) over md_content
         full_text = ""
 
-        if isinstance(result_data, dict):
-            content_list = result_data.get("content_list", [])
-            if isinstance(content_list, str):
-                with suppress(json.JSONDecodeError, TypeError):
-                    content_list = json.loads(content_list)
-            if isinstance(content_list, list):
+        transcription = vparse_response.get("transcription", "")
+        if transcription and isinstance(transcription, str):
+            full_text = transcription
+
+        if not full_text:
+            segments = vparse_response.get("segments", [])
+            if isinstance(segments, list):
                 full_text = "\n".join(
-                    item.get("text", "") for item in content_list if isinstance(item, dict) and item.get("text")
+                    seg.get("text", "") for seg in segments if isinstance(seg, dict) and seg.get("text")
                 )
 
-        # Fallback to md_content
-        if not full_text and isinstance(result_data, dict):
-            full_text = result_data.get("md_content", "")
+        if not full_text:
+            results = vparse_response.get("results", {})
+            filename = os.path.basename(pdf_path).rsplit(".", 1)[0]
+            result_data = results.get(filename, {})
 
-        # Clean up the text for LLM
-        full_text = re.sub(r"!\[.*?\]\(.*?\)\s*", "", full_text)  # Remove image refs
-        full_text = re.sub(r"\n{3,}", "\n\n", full_text)  # Collapse whitespace
+            if not result_data and results:
+                result_data = results[next(iter(results))]
+
+            if isinstance(result_data, dict):
+                content_list = result_data.get("content_list", [])
+                if isinstance(content_list, str):
+                    with suppress(json.JSONDecodeError, TypeError):
+                        content_list = json.loads(content_list)
+                if isinstance(content_list, list):
+                    full_text = "\n".join(
+                        item.get("text", "") for item in content_list if isinstance(item, dict) and item.get("text")
+                    )
+
+            if not full_text and isinstance(result_data, dict):
+                full_text = result_data.get("md_content", "")
+
+        full_text = re.sub(r"!\[.*?\]\(.*?\)\s*", "", full_text)
+        full_text = re.sub(r"\n{3,}", "\n\n", full_text)
         full_text = full_text.strip()
 
         return await self.extract_from_text(full_text, benchmark=benchmark, lang=lang)
@@ -104,7 +116,6 @@ class ExtractionPipeline:
         if not content.strip():
             return ExtractionResult().model_dump()
 
-        # Check if it's a structured JSON with transcription (already OCR'd content)
         try:
             data = json.loads(content)
             if isinstance(data, dict) and "transcription" in data:
@@ -121,12 +132,11 @@ class ExtractionPipeline:
         """Detect if content is a magazine/periodical or book."""
         text_lower = text.lower()
 
-        # Magazine indicators (English and Telugu)
         magazine_patterns = [
-            "మాసపత్రిక",  # monthly magazine (Telugu)
-            "సంచిక",  # issue (Telugu)
-            "చందా",  # subscription (Telugu)
-            "ఏజంట్లు",  # agents (Telugu)
+            "మాసపత్రిక",
+            "సంచిక",
+            "చందా",
+            "ఏజంట్లు",
             "magazine",
             "issue",
             "vol.",
@@ -151,10 +161,8 @@ class ExtractionPipeline:
             return await self._extract_book_metadata(text, benchmark=benchmark)
 
     async def _extract_book_metadata(self, text: str, benchmark: bool = False) -> dict[str, Any]:
-        # ISBN Extraction
         isbns = extract_isbn_candidates(text)
 
-        # LLM Semantic Extraction
         llm_result = self.extract_semantic_fields(text)
 
         final_data = {
@@ -165,7 +173,6 @@ class ExtractionPipeline:
             "isbn": None,
         }
 
-        # ISBN Validation & External lookup
         isbn = None
         if isbns:
             isbn = isbns[0]
@@ -176,7 +183,6 @@ class ExtractionPipeline:
 
         final_data["isbn"] = isbn
 
-        # Confidence Scoring
         all_candidates: dict[str, list[Any]] = {k: [v] for k, v in final_data.items() if k != "isbn"}
         all_candidates["isbn"] = isbns
         confidence = self.calculate_confidence(final_data, all_candidates, bool(isbn))
@@ -198,10 +204,8 @@ class ExtractionPipeline:
         return result.model_dump()
 
     async def _extract_magazine_metadata(self, text: str, benchmark: bool = False, lang: str = "te") -> dict[str, Any]:
-        # LLM Semantic Extraction for magazines
         llm_result = self.extract_magazine_semantic_fields(text, lang=lang)
 
-        # Build confidence scores
         confidence = MagazineConfidenceScores(
             magazine_name=0.8 if llm_result.get("magazine_name") else 0.0,
             editor=0.7 if llm_result.get("editor") else 0.0,
@@ -250,7 +254,7 @@ Example:
 {{"magazine_name": "చందమామ", "editor": "చక్రపాతి", "issue_date": "August 1948", "issue_number": "2"}}
 
 OCR Text:
-{text[:3000]}
+{text[: self.max_magazine_chars]}
 
 JSON:
 """
@@ -258,8 +262,6 @@ JSON:
             return {}
         text_out = ""
         try:
-            if self.vlm_client is None:
-                return {}
             sampling_params = SamplingParams(temperature=0.1, max_tokens=512, stop=["```"])
             outputs = self.vlm_client.generate([prompt], sampling_params)
             text_out = outputs[0].outputs[0].text.strip()
@@ -290,7 +292,7 @@ The text below was extracted via OCR from scanned book pages and may contain:
 Extract the following fields and return ONLY a valid JSON object:
 - "title": The book's title (look for prominent text, large headings, or text on the title page)
 - "author": The author's full name (look near "By", "©", "Written by", or Telugu/Hindi equivalents)
-- "publisher": The publisher's name (look near "Published by", "ప్రచురణ", "प्रकाशక", or publishing house names)
+- "publisher": The publisher's name (look near "Published by", "ప్రచురణ", "प्रकाशक", or publishing house names)
 - "published_date": The earliest publication date (look for years like 1996, 2004 near
   "First Edition", "ముద్రణ", "संस्करण")
 
@@ -302,7 +304,7 @@ Rules:
 - Prefer the original/first edition date over reprint dates.
 
 OCR Text:
-{text[:15000]}
+{text[: self.max_book_chars]}
 
 JSON:
 """

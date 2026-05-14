@@ -95,8 +95,6 @@
 | Audio Metadata           | No current use case |
 | Video Metadata           | No current use case |
 | Pre-OCR Regex            | vParse provides sufficient quality |
-| Image VLM Description    | Vision model not integrated for images |
-| OCR Format Standard      | vParse output is sufficient |
 
 ### 2.1 Audio/Video Metadata Extraction
 
@@ -485,8 +483,8 @@ async def get_job_status(job_id: str):
 
 ### Phase 2 Summary
 
-| Feature                  | Module                         | Status     |
-| ------------------------ | ------------------------------ | ---------- |
+| Feature                  | Module                         | Status      |
+| ------------------------ | ------------------------------ | ----------- |
 | vLLM Engine              | `vlm_client.py`, `pipeline.py` | ✅ Complete |
 | Hardware Detection       | `hardware.py`                  | ✅ Complete |
 | Model Registry           | `models_registry.py`           | ✅ Complete |
@@ -494,11 +492,11 @@ async def get_job_status(job_id: str):
 | Magazine Extraction      | `pipeline.py`                  | ✅ Complete |
 | Model Downloader         | `scripts/setup_models.py`      | ✅ Complete |
 | Docker GPU Support       | `docker-compose.yml`           | ✅ Complete |
+| Image VLM                | `vlm_client.py`                | ✅ Complete |
+| OCR Format Standard      | `pipeline.py`                  | ✅ Complete |
 | Audio Metadata           | `media_utils.py`               | 📋 Deferred |
 | Video Metadata           | `media_utils.py`               | 📋 Deferred |
 | Pre-OCR Regex            | `pdf_metadata_extractor.py`    | 📋 Deferred |
-| Image VLM                | `vlm_client.py`                | 📋 Deferred |
-| OCR Format Standard      | `models.py`, `pipeline.py`     | 📋 Deferred |
 
 ---
 
@@ -522,6 +520,8 @@ async def get_job_status(job_id: str):
 | CPU Worker | `docker-compose.yml` | ✅ |
 | Async API | `main.py` | ✅ |
 | Model Downloader Service | `docker-compose.yml` | ✅ |
+| Safe File Cleanup | `tasks.py` | ✅ |
+| Stale Upload Cleanup | `tasks.py` | ✅ |
 
 ### Queue Configuration
 
@@ -586,7 +586,7 @@ async def extract_with_cache(file_path: str, options: dict):
 
 | Module                      | Responsibility                   | Dependencies        |
 | --------------------------- | -------------------------------- | ------------------- |
-| `vlm_client.py`             | vLLM singleton wrapper           | vllm, hardware      |
+| `vlm_client.py`             | vLLM lifecycle-managed wrapper   | vllm, hardware      |
 | `validation.py`             | ISBN validation                  | regex               |
 | `image_utils.py`            | EXIF extraction                  | PIL, piexif         |
 | `pipeline.py`               | Orchestration + LLM inference    | vllm, vparse_client |
@@ -622,7 +622,7 @@ async def extract_with_cache(file_path: str, options: dict):
 ### Coverage
 
 - Target: 90%+ coverage
-- Current: 95% (140 tests)
+- Current: 141 tests passing
 
 ---
 
@@ -647,6 +647,8 @@ async def extract_with_cache(file_path: str, options: dict):
 - [x] Launch CPU workers
 - [x] Enable async queue
 - [x] Add async API endpoints
+- [x] Add safe file cleanup (OSError-tolerant)
+- [x] Add stale upload cleanup on worker startup
 
 ### Phase 4
 

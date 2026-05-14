@@ -8,7 +8,7 @@ from PIL import Image
 try:
     from vllm import LLM, SamplingParams
 except ImportError:
-    # Fallback for linting/testing in slim environments
+
     class _SamplingParamsStub:
         def __init__(self, **kwargs: Any) -> None:
             pass
@@ -34,19 +34,20 @@ class VLMClient:
     Handles hardware-optimized initialization and provides methods for text and vision tasks.
     """
 
-    _instance: "VLMClient | None" = None
-    _llm: Any = None
-
     def __init__(self, model_id: str | None = None, max_model_len: int = 4096):
-        """
-        Initialize the VLMClient. Note: Use get_instance() for shared LLM resource.
-        """
-        if VLMClient._llm is None:
-            self.model_id = (
-                model_id or os.getenv("VLLM_MODEL_ID") or os.getenv("VLLM_MODEL") or self._detect_cached_model()
-            )
-            self.max_model_len = max_model_len
-            self._initialize_llm()
+        self.model_id = model_id or os.getenv("VLLM_MODEL_ID") or os.getenv("VLLM_MODEL") or self._detect_cached_model()
+        self.max_model_len = max_model_len
+        self._llm: Any = None
+
+    def startup(self) -> None:
+        """Initialize the vLLM engine. Call once at application startup."""
+        self._initialize_llm()
+
+    def shutdown(self) -> None:
+        """Release vLLM resources. Call once at application shutdown."""
+        if self._llm is not None:
+            del self._llm
+            self._llm = None
 
     @staticmethod
     def _detect_cached_model() -> str:
@@ -70,13 +71,6 @@ class VLMClient:
         logger.info(f"No known cached models. Using: {cached[0]}")
         return cached[0]
 
-    @classmethod
-    def get_instance(cls, model_id: str | None = None, max_model_len: int = 4096) -> "VLMClient":
-        """Get or create a singleton instance of VLMClient."""
-        if cls._instance is None:
-            cls._instance = cls(model_id=model_id, max_model_len=max_model_len)
-        return cls._instance
-
     def _initialize_llm(self) -> None:
         """Initialize vLLM engine with hardware-optimized configuration."""
         if not isinstance(LLM, type) or LLM.__name__ == "_LLMStub":
@@ -88,26 +82,27 @@ class VLMClient:
                 "  uv sync --extra ml"
             )
 
+        gpu_util = float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "0.90"))
         config = get_vllm_config()
 
         logger.info(f"Initializing VLMClient with hardware: {config['detected_hardware']['name']}")
         logger.info(
             f"Applying vLLM config: dtype={config['dtype']}, "
             f"tp_size={config['tensor_parallel_size']}, "
-            f"memory_util={config['gpu_memory_utilization']}"
+            f"memory_util={gpu_util}"
         )
 
-        # Set environment variable to force device type only if not already configured
         if "VLLM_TARGET_DEVICE" not in os.environ:
             os.environ["VLLM_TARGET_DEVICE"] = config["device"]
 
-        VLMClient._llm = LLM(
+        self._llm = LLM(
             model=self.model_id,
             tensor_parallel_size=config["tensor_parallel_size"],
             dtype=config["dtype"],
             max_model_len=self.max_model_len,
-            gpu_memory_utilization=config["gpu_memory_utilization"],
+            gpu_memory_utilization=gpu_util,
             trust_remote_code=True,
+            enforce_eager=False,
         )
 
     def generate(self, prompts: list[str], sampling_params: Any = None) -> list[Any]:
@@ -115,14 +110,15 @@ class VLMClient:
         if sampling_params is None:
             sampling_params = SamplingParams(temperature=0.7, max_tokens=512)
 
-        if VLMClient._llm is None:
+        if self._llm is None:
             raise RuntimeError("vLLM engine not initialized")
 
-        return cast(list[Any], VLMClient._llm.generate(prompts, sampling_params))
+        return cast(list[Any], self._llm.generate(prompts, sampling_params))
 
     async def describe_image(self, image_path: str) -> dict[str, Any]:
         """Generate a rich description for an image using vLLM multimodal inference."""
-        image = Image.open(image_path).convert("RGB")
+        with Image.open(image_path) as img:
+            image = img.convert("RGB")
 
         prompt_text = (
             "Analyze this image. Return ONLY a valid JSON object with the following keys: "
@@ -132,7 +128,7 @@ class VLMClient:
             "'entities' (list of dicts with 'name' and 'type')."
         )
 
-        if VLMClient._llm is None:
+        if self._llm is None:
             raise RuntimeError("vLLM engine not initialized")
 
         sampling_params = SamplingParams(temperature=0.2, max_tokens=512, stop=["```"])
@@ -141,7 +137,7 @@ class VLMClient:
             "multi_modal_data": {"image": image},
         }
 
-        outputs = VLMClient._llm.generate([inputs], sampling_params)
+        outputs = self._llm.generate([inputs], sampling_params)
         text_out = outputs[0].outputs[0].text.strip()
 
         start = text_out.find("{")

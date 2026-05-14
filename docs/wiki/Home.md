@@ -18,7 +18,7 @@ Welcome to the documentation for the multi-phase implementation of the metadata 
 | -------------------------------------- | -------------- | ------------------ | --------------------------------------------------------------------------- |
 | [Phase 1](Phase-1-Foundation)          | ✅ COMPLETE    | Foundation         | Format Router, PDF/Text/Image pipelines, Docker                             |
 | [Phase 2](Phase-2-Multimedia-VLM)      | ✅ COMPLETE    | Multimedia & VLM   | vLLM engine, hardware detection, model management, magazine extraction      |
-| [Phase 3](Phase-3-Async-Processing)    | ✅ COMPLETE    | Async Processing   | Celery + Redis, dual-queue workers, async API endpoints                     |
+| [Phase 3](Phase-3-Async-Processing)    | ✅ COMPLETE    | Async Processing   | Celery + Redis, dual-queue workers, async API endpoints, safe cleanup     |
 | [Phase 4](Phase-4-Scale-Optimization)  | 📋 FUTURE      | Scale Optimization | VLM batching, caching, Kubernetes                                           |
 | [Phase N](Phase-N-Future-Enhancements) | 📋 FUTURE      | Enhancements       | Streaming OCR, multi-tenant, RAG pipeline                                   |
 
@@ -68,7 +68,7 @@ Welcome to the documentation for the multi-phase implementation of the metadata 
 | ------------------------ | ------------------------------------ | --------- |
 | PDF                      | VParse OCR + LLM extraction          | ✅        |
 | Text (.md, .json, .txt)  | Direct LLM processing                | ✅        |
-| Image (.jpg, .png, etc.) | EXIF + PIL metadata extraction       | ❌        |
+| Image (.jpg, .png, etc.) | EXIF + PIL metadata extraction (+ optional VLM) | ❌/✅ |
 
 ---
 
@@ -91,4 +91,4 @@ When implementing new phases:
 
 ---
 
-_Last updated: Phase 3 (Celery + Redis) complete_
+_Last updated: Phase 3 complete — production hardening refactor (lifecycle management, retry logic, upload limits, dead code removal)_

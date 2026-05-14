@@ -245,28 +245,11 @@ def test_cli_extract_command_pdf_with_lang(tmp_path):
 def test_get_vision_pipeline_returns_pipeline():
     from bookextractor.main import get_vision_pipeline
 
-    get_vision_pipeline.cache_clear()
     with patch("bookextractor.main.ExtractionPipeline") as mock_class:
         mock_class.return_value = MagicMock()
         pipeline = get_vision_pipeline()
-        mock_class.assert_called_once_with(load_llm=False)
+        mock_class.assert_called_once_with(load_llm=False, max_model_len=16384)
         assert pipeline is not None
-
-    get_vision_pipeline.cache_clear()
-
-
-def test_get_vision_pipeline_is_cached():
-    from bookextractor.main import get_vision_pipeline
-
-    get_vision_pipeline.cache_clear()
-    with patch("bookextractor.main.ExtractionPipeline") as mock_class:
-        mock_class.return_value = MagicMock(name="pipeline_instance")
-        p1 = get_vision_pipeline()
-        p2 = get_vision_pipeline()
-        assert p1 is p2
-        assert mock_class.call_count == 1
-
-    get_vision_pipeline.cache_clear()
 
 
 def test_cli_unsupported_file_type_hits_else(tmp_path):
