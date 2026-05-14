@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import threading
@@ -74,7 +73,7 @@ def extract_pdf_task(self, pdf_path: str, lang: str = "en", benchmark: bool = Fa
     _register_in_flight(pdf_path)
     try:
         p = get_pipeline(load_vlm=True)
-        return asyncio.run(p.process_pdf(pdf_path, benchmark=benchmark, lang=lang))
+        return p.process_pdf_sync(pdf_path, benchmark=benchmark, lang=lang)
     finally:
         _unregister_in_flight(pdf_path)
         if os.path.exists(pdf_path):
@@ -87,7 +86,7 @@ def extract_image_task(self, image_path: str, benchmark: bool = False, use_vlm: 
     _register_in_flight(image_path)
     try:
         p = get_pipeline(load_vlm=use_vlm)
-        return asyncio.run(p.process_image(image_path, benchmark=benchmark))
+        return p.process_image_sync(image_path, benchmark=benchmark)
     finally:
         _unregister_in_flight(image_path)
         if os.path.exists(image_path):
@@ -100,7 +99,7 @@ def extract_text_task(self, file_path: str, benchmark: bool = False, lang: str =
     _register_in_flight(file_path)
     try:
         p = get_pipeline(load_vlm=True)
-        return asyncio.run(p.process_text_file(file_path, benchmark=benchmark, lang=lang))
+        return p.process_text_file_sync(file_path, benchmark=benchmark, lang=lang)
     finally:
         _unregister_in_flight(file_path)
         if os.path.exists(file_path):

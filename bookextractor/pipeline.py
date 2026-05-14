@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -217,5 +218,17 @@ class ExtractionPipeline:
         if result is not None:
             return result
         return {}
+
+    def process_pdf_sync(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
+        """Synchronous wrapper for process_pdf. Safe for Celery tasks."""
+        return asyncio.run(self.process_pdf(pdf_path, benchmark=benchmark, lang=lang))
+
+    def process_image_sync(self, image_path: str, benchmark: bool = False) -> dict[str, Any]:
+        """Synchronous wrapper for process_image. Safe for Celery tasks."""
+        return asyncio.run(self.process_image(image_path, benchmark=benchmark))
+
+    def process_text_file_sync(self, file_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
+        """Synchronous wrapper for process_text_file. Safe for Celery tasks."""
+        return asyncio.run(self.process_text_file(file_path, benchmark=benchmark, lang=lang))
 
     
