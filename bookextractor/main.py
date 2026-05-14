@@ -1,12 +1,14 @@
 import asyncio
 import json
 import os
+import pathlib
 import uuid
 from enum import Enum
+from functools import lru_cache
 
 import typer
 import uvicorn
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 
 from .pipeline import ExtractionPipeline
 from .tasks import celery_app, extract_image_task, extract_pdf_task, extract_text_task
@@ -22,20 +24,15 @@ class OCRLanguage(str, Enum):
 
 app = FastAPI()
 cli_app = typer.Typer()
-pipeline = None
-_pipeline_load_llm = True
 ALLOWED_EXTENSIONS = (".pdf", ".md", ".json", ".txt", ".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")
 UPLOAD_DIR = os.getenv("BOOKEXTRACTOR_UPLOAD_DIR", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-def get_pipeline(max_model_len: int = 4096, load_llm: bool = True):
-    global pipeline, _pipeline_load_llm
-    if pipeline is None or _pipeline_load_llm != load_llm:
-        pipeline = ExtractionPipeline(max_model_len=max_model_len, load_llm=load_llm)
-        _pipeline_load_llm = load_llm
-    return pipeline
+@lru_cache
+def get_vision_pipeline():
+    return ExtractionPipeline(load_llm=False)
 
 
 @app.get("/health")
@@ -50,6 +47,7 @@ async def extract_async(
         OCRLanguage.ENGLISH,
         description="OCR language pack: 'en' (English), 'te' (Telugu+English), 'devanagari' (Hindi+English)",
     ),
+    use_vlm: bool = Form(False, description="Run deep Vision analysis on images (requires GPU)"),  # noqa: B008
 ):
     """Submit an extraction job to the background queue."""
     if not file.filename:
@@ -60,7 +58,8 @@ async def extract_async(
 
     # Save to persistent upload dir for worker access
     file_id = str(uuid.uuid4())
-    save_path = os.path.join(UPLOAD_DIR, f"{file_id}_{file.filename}")
+    safe_extension = pathlib.Path(file.filename).suffix.lower()
+    save_path = os.path.join(UPLOAD_DIR, f"{file_id}{safe_extension}")
 
     with open(save_path, "wb") as buffer:
         buffer.write(await file.read())
@@ -69,7 +68,12 @@ async def extract_async(
         if filename.endswith(".pdf"):
             task = extract_pdf_task.delay(save_path, lang=lang.value)
         elif filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")):
-            task = extract_image_task.delay(save_path)
+            target_queue = "vlm_queue" if use_vlm else "default_queue"
+            task = extract_image_task.apply_async(
+                args=[save_path],
+                kwargs={"use_vlm": use_vlm},
+                queue=target_queue,
+            )
         else:
             task = extract_text_task.delay(save_path, lang=lang.value)
 
@@ -110,10 +114,11 @@ async def _extract_file(
     benchmark: bool = False,
     lang: OCRLanguage = OCRLanguage.ENGLISH,
     max_model_len: int = 4096,
+    use_vlm: bool = False,
 ) -> None:
     filename = input_file.lower()
     is_image = filename.endswith(IMAGE_EXTENSIONS)
-    p = get_pipeline(max_model_len=max_model_len, load_llm=not is_image)
+    p = ExtractionPipeline(max_model_len=max_model_len, load_llm=(not is_image) or use_vlm)
 
     if filename.endswith(".pdf"):
         result = await p.process_pdf(input_file, benchmark=benchmark, lang=lang.value)
@@ -134,18 +139,17 @@ async def _extract_file(
 @app.post("/extract")
 async def extract(
     file: UploadFile = File(...),  # noqa: B008
-    lang: OCRLanguage = Form(  # noqa: B008
-        OCRLanguage.ENGLISH,
-        description="OCR language pack: 'en' (English), 'te' (Telugu+English), 'devanagari' (Hindi+English)",
-    ),
+    vision_pipeline: ExtractionPipeline = Depends(get_vision_pipeline),
 ):
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
     filename = file.filename.lower()
-    if not filename.endswith(ALLOWED_EXTENSIONS):
-        raise HTTPException(status_code=400, detail=f"Unsupported file type. Allowed: {ALLOWED_EXTENSIONS}")
+    if not filename.endswith(IMAGE_EXTENSIONS):
+        raise HTTPException(
+            status_code=400,
+            detail="Synchronous extraction is only supported for images. Use /extract/async for PDFs/Text.",
+        )
 
-    # Save temp file
     import tempfile
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -155,17 +159,10 @@ async def extract(
             buffer.write(await file.read())
 
         try:
-            is_image = filename.endswith(IMAGE_EXTENSIONS)
-            p = get_pipeline(load_llm=not is_image)
-            if filename.endswith(".pdf"):
-                result = await p.process_pdf(temp_path, lang=lang.value)
-            elif is_image:
-                result = await p.process_image(temp_path)
-            else:
-                result = await p.process_text_file(temp_path, lang=lang.value)
+            result = await vision_pipeline.process_image(temp_path)
             return result
         finally:
-            pass  # TemporaryDirectory handles cleanup
+            pass
 
 
 @cli_app.callback()
@@ -199,13 +196,18 @@ def extract_command(
         "--lang",
         help="OCR language pack for PDF extraction: en, te, devanagari",
     ),
+    use_vlm: bool = typer.Option(False, "--vlm", help="Enable VLM analysis for images"),  # noqa: B008
     max_model_len: int = typer.Option(  # noqa: B008
         4096,
         "--max-model-len",
         help="Maximum context length (reduce to save VRAM)",
     ),
 ) -> None:
-    asyncio.run(_extract_file(input_file, output_json, benchmark=benchmark, lang=lang, max_model_len=max_model_len))
+    asyncio.run(
+        _extract_file(
+            input_file, output_json, benchmark=benchmark, lang=lang, max_model_len=max_model_len, use_vlm=use_vlm
+        )
+    )
 
 
 @cli_app.command("api")

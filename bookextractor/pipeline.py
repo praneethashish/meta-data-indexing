@@ -24,6 +24,7 @@ from .models import (
     ConfidenceScores,
     ExtractionResult,
     ImageMetadata,
+    ImageVLMMetadata,
     MagazineConfidenceScores,
     MagazineMetadata,
 )
@@ -84,7 +85,13 @@ class ExtractionPipeline:
     async def process_image(self, image_path: str, benchmark: bool = False) -> dict[str, Any]:
         metadata_dict = extract_image_metadata(image_path)
         img_meta = ImageMetadata(**metadata_dict)
-        result = ExtractionResult(image_metadata=img_meta)
+
+        image_vlm_metadata = None
+        if self.vlm_client is not None:
+            vlm_data_dict = await self.vlm_client.describe_image(image_path)
+            image_vlm_metadata = ImageVLMMetadata(**vlm_data_dict)
+
+        result = ExtractionResult(image_metadata=img_meta, image_vlm_metadata=image_vlm_metadata)
 
         if benchmark:
             return BenchmarkResult(result=result).model_dump()
@@ -309,8 +316,12 @@ JSON:
             end = text_out.rfind("}") + 1
             if start != -1 and end != -1:
                 return cast(dict[str, Any], json.loads(text_out[start:end]))
-        except Exception:  # nosec
-            pass
+            else:
+                logger.warning("Failed to locate JSON brackets in LLM output.")
+        except json.JSONDecodeError as e:
+            logger.error(f"LLM output yielded invalid JSON: {e}. Raw text: {text_out}")
+        except Exception as e:
+            logger.exception(f"Unexpected error during semantic extraction: {e}")
         return {}
 
     def calculate_confidence(

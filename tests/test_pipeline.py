@@ -139,6 +139,7 @@ async def test_process_image_extracts_metadata(sample_image_metadata, tmp_path):
 
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):  # noqa: ARG005
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
+        pipeline.vlm_client = None
 
         with patch("bookextractor.pipeline.extract_image_metadata", return_value=sample_image_metadata):
             result = await pipeline.process_image(str(image_path))
@@ -156,6 +157,7 @@ async def test_process_image_benchmark_mode(sample_image_metadata, tmp_path):
 
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):  # noqa: ARG005
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
+        pipeline.vlm_client = None
 
         with patch("bookextractor.pipeline.extract_image_metadata", return_value=sample_image_metadata):
             result = await pipeline.process_image(str(image_path), benchmark=True)
@@ -267,6 +269,7 @@ async def test_process_pdf_invalid_json_fallback(mock_vlm_client, tmp_path):
 def test_calculate_confidence_with_data():
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):  # noqa: ARG005
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
+        pipeline.vlm_client = None
 
         final = {"title": "Test Book", "author": "Test Author", "publisher": "Test Publisher", "published_date": "2023"}
 
@@ -289,6 +292,7 @@ def test_calculate_confidence_with_data():
 def test_calculate_confidence_without_data():
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):  # noqa: ARG005
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
+        pipeline.vlm_client = None
 
         final = {"title": None, "author": None, "publisher": None, "published_date": None}
 
@@ -399,6 +403,7 @@ async def test_extract_from_text_magazine_json_input(mock_vlm_client, tmp_path):
 def test_detect_content_type():
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
+        pipeline.vlm_client = None
 
         assert pipeline._detect_content_type("మాసపత్రిక విషయాలు") == "magazine"
         assert pipeline._detect_content_type("సంచిక 2 నంపుటి") == "magazine"

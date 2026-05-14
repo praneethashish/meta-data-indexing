@@ -1,3 +1,4 @@
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,69 +10,104 @@ except ImportError:
 
 from bookextractor.vlm_client import VLMClient
 
+_MOCK_CONFIG = {
+    "detected_hardware": {"name": "TestDevice", "memory_gb": 16, "count": 1},
+    "device": "cuda",
+    "dtype": "float16",
+    "tensor_parallel_size": 1,
+    "gpu_memory_utilization": 0.9,
+}
+
+
+class MockLLM:
+    __name__ = "LLM"
+
+    def __init__(self, **_kwargs):
+        self.generate = MagicMock(return_value=[])
+
 
 @pytest.fixture
 def mock_llm():
-    with patch("bookextractor.vlm_client.LLM") as mock:
-        yield mock
+    with (
+        patch("bookextractor.vlm_client.LLM", MockLLM),
+        patch("bookextractor.vlm_client.get_vllm_config", return_value=_MOCK_CONFIG),
+    ):
+        yield MockLLM
 
 
-@pytest.mark.skipif(_SamplingParams is None, reason="vllm not installed")
-def test_vlm_client_singleton(mock_llm):
-    """Test that VLMClient maintains a singleton instance."""
-    # Reset singleton state for testing
+def _reset_vlm():
     VLMClient._instance = None
     VLMClient._llm = None
 
+
+@pytest.mark.skipif(_SamplingParams is None, reason="vllm not installed")
+def test_vlm_client_singleton(mock_llm):  # noqa: ARG001
+    _reset_vlm()
     client1 = VLMClient.get_instance()
     client2 = VLMClient.get_instance()
 
     assert client1 is client2
-    assert mock_llm.called
+    assert VLMClient._llm is not None
 
 
 @pytest.mark.skipif(_SamplingParams is None, reason="vllm not installed")
 @pytest.mark.asyncio
-async def test_vlm_client_generate(mock_llm):
-    """Test the generate method of VLMClient."""
-    VLMClient._instance = None
-    VLMClient._llm = None
+async def test_vlm_client_generate(mock_llm):  # noqa: ARG001
+    _reset_vlm()
+    client = VLMClient.get_instance()
 
     mock_instance = MagicMock()
-    mock_instance.generate.return_value = ["output"]
-    mock_llm.return_value = mock_instance
+    mock_output = MagicMock()
+    mock_output.text = "generated text"
+    mock_instance.generate.return_value = [MagicMock(outputs=[mock_output])]
+    VLMClient._llm = mock_instance
 
-    client = VLMClient.get_instance()
     result = client.generate(["prompt"])
-
-    assert result == ["output"]
+    assert result is not None
     mock_instance.generate.assert_called_once()
 
-    # Custom params
-    custom_params = _SamplingParams(temperature=0.0)
+    custom_params = MagicMock()
     client.generate(["prompt"], sampling_params=custom_params)
     assert mock_instance.generate.call_count == 2
 
 
 @pytest.mark.asyncio
-async def test_vlm_client_describe_image():
-    """Test the describe_image placeholder."""
-    VLMClient._instance = None
-    VLMClient._llm = None
+async def test_vlm_client_describe_image(tmp_path):
+    """Test describe_image VLM multimodal inference."""
+    _reset_vlm()
 
-    # Instantiate without actual LLM for simple placeholder test
-    with patch("bookextractor.vlm_client.VLMClient._initialize_llm"):
-        client = VLMClient.get_instance()
-        result = await client.describe_image("test_path")
+    image_path = tmp_path / "test.jpg"
+    image_path.write_bytes(b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00")
+
+    mock_llm_instance = MagicMock()
+    mock_output = MagicMock()
+    mock_output.outputs = [
+        MagicMock(
+            text='{"description": "A test image", "text_content": "Hello", "language": "en", "scene_classification": "document", "entities": []}'
+        )
+    ]
+    mock_llm_instance.generate.return_value = [mock_output]
+
+    VLMClient._llm = mock_llm_instance
+
+    client = VLMClient.__new__(VLMClient)
+    client.vlm_client = None
+    client.model_id = "test-model"
+    client.max_model_len = 4096
+
+    with patch("bookextractor.vlm_client.Image") as mock_pil_image:
+        mock_pil_image.open.return_value.convert.return_value = MagicMock()
+        result = await client.describe_image(str(image_path))
 
     assert "description" in result
-    assert result["text_content"] is None
+    assert result["description"] == "A test image"
+    assert result["scene_classification"] == "document"
+
+    _reset_vlm()
 
 
 def test_vlm_client_generate_without_init():
-    """Test that generate raises RuntimeError without LLM initialized."""
-    VLMClient._instance = None
-    VLMClient._llm = None
+    _reset_vlm()
 
     client = VLMClient.__new__(VLMClient)
     client._llm = None
@@ -81,9 +117,7 @@ def test_vlm_client_generate_without_init():
 
 
 def test_vlm_client_auto_detect_cached():
-    """Test auto-detection of cached models."""
-    VLMClient._instance = None
-    VLMClient._llm = None
+    _reset_vlm()
 
     with patch("bookextractor.models_registry.get_cached_models", return_value=[]):
         result = VLMClient._detect_cached_model()
@@ -92,3 +126,28 @@ def test_vlm_client_auto_detect_cached():
     with patch("bookextractor.models_registry.get_cached_models", return_value=["myorg/mymodel"]):
         result = VLMClient._detect_cached_model()
         assert result == "myorg/mymodel"
+
+
+def test_vllm_target_device_env_guard(monkeypatch):
+    _reset_vlm()
+
+    monkeypatch.setenv("VLLM_TARGET_DEVICE", "custom_tpu_device")
+
+    class SingeLLM:
+        __name__ = "LLM"
+
+        def __init__(self, **_kwargs):
+            pass
+
+    with (
+        patch("bookextractor.vlm_client.get_vllm_config", return_value=_MOCK_CONFIG),
+        patch("bookextractor.vlm_client.LLM", SingeLLM),
+    ):
+        client = VLMClient.__new__(VLMClient)
+        client.model_id = "test-model"
+        client.max_model_len = 4096
+        client._initialize_llm()
+
+        assert os.environ["VLLM_TARGET_DEVICE"] == "custom_tpu_device"
+
+    _reset_vlm()

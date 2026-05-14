@@ -9,7 +9,7 @@ try:
 except ImportError:
     huggingface_hub = None  # type: ignore
 
-from bookextractor.main import app
+from bookextractor.main import app, get_vision_pipeline
 
 
 @pytest.fixture
@@ -24,7 +24,6 @@ def sample_pdf_bytes():
 
 @pytest.fixture
 def sample_jpg_bytes():
-    # Minimal valid JPEG header
     return b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"  # noqa: E501
 
 
@@ -47,6 +46,13 @@ def mock_pipeline():
     return mock
 
 
+@pytest.fixture
+def override_vision_pipeline(mock_pipeline):
+    app.dependency_overrides[get_vision_pipeline] = lambda: mock_pipeline
+    yield mock_pipeline
+    app.dependency_overrides.clear()
+
+
 def test_health_endpoint(test_client):
     response = test_client.get("/health")
 
@@ -54,123 +60,92 @@ def test_health_endpoint(test_client):
     assert response.json() == {"status": "ok"}
 
 
-@pytest.mark.asyncio
-async def test_extract_pdf_routes_correctly(test_client, sample_pdf_bytes, mock_pipeline):
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        files = {"file": ("test.pdf", BytesIO(sample_pdf_bytes), "application/pdf")}
-        response = test_client.post("/extract", files=files)
+def test_extract_jpg_routes_correctly(test_client, override_vision_pipeline):
+    sample_jpg = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+    files = {"file": ("test.jpg", BytesIO(sample_jpg), "image/jpeg")}
+    response = test_client.post("/extract", files=files)
 
-        assert response.status_code == 200
-        mock_pipeline.process_pdf.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_extract_jpg_routes_correctly(test_client, sample_jpg_bytes, mock_pipeline):
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        files = {"file": ("test.jpg", BytesIO(sample_jpg_bytes), "image/jpeg")}
-        response = test_client.post("/extract", files=files)
-
-        assert response.status_code == 200
-        mock_pipeline.process_image.assert_called_once()
+    assert response.status_code == 200
+    override_vision_pipeline.process_image.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_extract_png_routes_correctly(test_client, sample_jpg_bytes, mock_pipeline):
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        files = {"file": ("test.png", BytesIO(sample_jpg_bytes), "image/png")}
-        response = test_client.post("/extract", files=files)
+def test_extract_png_routes_correctly(test_client, override_vision_pipeline):
+    sample_jpg = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+    files = {"file": ("test.png", BytesIO(sample_jpg), "image/png")}
+    response = test_client.post("/extract", files=files)
 
-        assert response.status_code == 200
-        mock_pipeline.process_image.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_extract_webp_routes_correctly(test_client, sample_jpg_bytes, mock_pipeline):
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        files = {"file": ("test.webp", BytesIO(sample_jpg_bytes), "image/webp")}
-        response = test_client.post("/extract", files=files)
-
-        assert response.status_code == 200
-        mock_pipeline.process_image.assert_called_once()
+    assert response.status_code == 200
+    override_vision_pipeline.process_image.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_extract_tiff_routes_correctly(test_client, sample_jpg_bytes, mock_pipeline):
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        files = {"file": ("test.tiff", BytesIO(sample_jpg_bytes), "image/tiff")}
-        response = test_client.post("/extract", files=files)
+def test_extract_webp_routes_correctly(test_client, override_vision_pipeline):
+    sample_jpg = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+    files = {"file": ("test.webp", BytesIO(sample_jpg), "image/webp")}
+    response = test_client.post("/extract", files=files)
 
-        assert response.status_code == 200
-        mock_pipeline.process_image.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_extract_jpeg_routes_correctly(test_client, sample_jpg_bytes, mock_pipeline):
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        files = {"file": ("test.jpeg", BytesIO(sample_jpg_bytes), "image/jpeg")}
-        response = test_client.post("/extract", files=files)
-
-        assert response.status_code == 200
-        mock_pipeline.process_image.assert_called_once()
+    assert response.status_code == 200
+    override_vision_pipeline.process_image.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_extract_md_routes_correctly(test_client, sample_md_bytes, mock_pipeline):
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        files = {"file": ("test.md", BytesIO(sample_md_bytes), "text/markdown")}
-        response = test_client.post("/extract", files=files)
+def test_extract_tiff_routes_correctly(test_client, override_vision_pipeline):
+    sample_jpg = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+    files = {"file": ("test.tiff", BytesIO(sample_jpg), "image/tiff")}
+    response = test_client.post("/extract", files=files)
 
-        assert response.status_code == 200
-        mock_pipeline.process_text_file.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_extract_json_routes_correctly(test_client, sample_json_bytes, mock_pipeline):
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        files = {"file": ("test.json", BytesIO(sample_json_bytes), "application/json")}
-        response = test_client.post("/extract", files=files)
-
-        assert response.status_code == 200
-        mock_pipeline.process_text_file.assert_called_once()
+    assert response.status_code == 200
+    override_vision_pipeline.process_image.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_extract_unsupported_type_returns_400(test_client, mock_pipeline):
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        files = {"file": ("test.docx", BytesIO(b"Plain text"), "application/octet-stream")}
-        response = test_client.post("/extract", files=files)
+def test_extract_jpeg_routes_correctly(test_client, override_vision_pipeline):
+    sample_jpg = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+    files = {"file": ("test.jpeg", BytesIO(sample_jpg), "image/jpeg")}
+    response = test_client.post("/extract", files=files)
 
-        assert response.status_code == 400
-        assert "Unsupported file type" in response.json()["detail"]
-        mock_pipeline.process_pdf.assert_not_called()
-        mock_pipeline.process_image.assert_not_called()
-        mock_pipeline.process_text_file.assert_not_called()
+    assert response.status_code == 200
+    override_vision_pipeline.process_image.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_extract_no_filename_returns_400(test_client, sample_pdf_bytes, mock_pipeline):
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        # We use a mock that passes validation but has empty filename
-        mock_file = MagicMock()
-        mock_file.filename = ""
+def test_extract_tif_routes_correctly(test_client, override_vision_pipeline):
+    sample_jpg = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+    files = {"file": ("test.tif", BytesIO(sample_jpg), "image/tiff")}
+    response = test_client.post("/extract", files=files)
 
-        # Patch the endpoint to use our mock or just send it via client
-        # Actually, let's try sending it via client with None as filename
-        files = {"file": (None, BytesIO(sample_pdf_bytes), "application/pdf")}
-        response = test_client.post("/extract", files=files)
-
-        # If it's 422, FastAPI caught it. If 400, our code caught it.
-        assert response.status_code in [400, 422]
+    assert response.status_code == 200
+    override_vision_pipeline.process_image.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_extract_uppercase_extension(test_client, sample_pdf_bytes, mock_pipeline):
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
-        files = {"file": ("test.PDF", BytesIO(sample_pdf_bytes), "application/pdf")}
-        response = test_client.post("/extract", files=files)
+def test_extract_rejects_pdf_with_400(test_client):
+    sample_pdf = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF"
+    files = {"file": ("test.pdf", BytesIO(sample_pdf), "application/pdf")}
+    response = test_client.post("/extract", files=files)
 
-        assert response.status_code == 200
-        mock_pipeline.process_pdf.assert_called_once()
+    assert response.status_code == 400
+    assert "Synchronous extraction is only supported for images" in response.json()["detail"]
+
+
+def test_extract_rejects_md_with_400(test_client):
+    sample_md = b"# Test Document\n\nBy Test Author"
+    files = {"file": ("test.md", BytesIO(sample_md), "text/markdown")}
+    response = test_client.post("/extract", files=files)
+
+    assert response.status_code == 400
+    assert "Synchronous extraction is only supported for images" in response.json()["detail"]
+
+
+def test_extract_rejects_json_with_400(test_client):
+    sample_json = b'{"title": "Test", "author": "Author"}'
+    files = {"file": ("test.json", BytesIO(sample_json), "application/json")}
+    response = test_client.post("/extract", files=files)
+
+    assert response.status_code == 400
+    assert "Synchronous extraction is only supported for images" in response.json()["detail"]
+
+
+def test_extract_no_filename_returns_400(test_client):
+    files = {"file": (None, BytesIO(b"data"), "application/pdf")}
+    response = test_client.post("/extract", files=files)
+
+    assert response.status_code in [400, 422]
 
 
 def test_cli_pdf_routing(tmp_path):
@@ -186,7 +161,7 @@ def test_cli_pdf_routing(tmp_path):
     mock_pipeline = MagicMock()
     mock_pipeline.process_pdf = AsyncMock(return_value={"book_metadata": {"title": "Test"}})
 
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
+    with patch("bookextractor.main.ExtractionPipeline", return_value=mock_pipeline):
         result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file)])
 
         assert result.exit_code == 0
@@ -207,7 +182,7 @@ def test_cli_image_routing(tmp_path):
     mock_pipeline = MagicMock()
     mock_pipeline.process_image = AsyncMock(return_value={"image_metadata": {"width": 100}})
 
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
+    with patch("bookextractor.main.ExtractionPipeline", return_value=mock_pipeline):
         result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file)])
 
         assert result.exit_code == 0
@@ -227,14 +202,14 @@ def test_cli_text_file_routing(tmp_path):
     mock_pipeline = MagicMock()
     mock_pipeline.process_text_file = AsyncMock(return_value={"book_metadata": {"title": "Test"}})
 
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
+    with patch("bookextractor.main.ExtractionPipeline", return_value=mock_pipeline):
         result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file)])
 
         assert result.exit_code == 0
         mock_pipeline.process_text_file.assert_called_once()
 
 
-def test_cli_missing_arguments():  # noqa: ARG001
+def test_cli_missing_arguments():
     from typer.testing import CliRunner
 
     from bookextractor.main import cli_app
@@ -259,12 +234,55 @@ def test_cli_extract_command_pdf_with_lang(tmp_path):
     mock_pipeline = MagicMock()
     mock_pipeline.process_pdf = AsyncMock(return_value={"book_metadata": {"title": "Test"}})
 
-    with patch("bookextractor.main.get_pipeline", return_value=mock_pipeline):
+    with patch("bookextractor.main.ExtractionPipeline", return_value=mock_pipeline):
         result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file), "--lang", "te"])
 
         assert result.exit_code == 0, f"Exit code was {result.exit_code}, output: {result.output}"
         mock_pipeline.process_pdf.assert_called_once()
         assert mock_pipeline.process_pdf.call_args.kwargs["lang"] == "te"
+
+
+def test_get_vision_pipeline_returns_pipeline():
+    from bookextractor.main import get_vision_pipeline
+
+    get_vision_pipeline.cache_clear()
+    with patch("bookextractor.main.ExtractionPipeline") as mock_class:
+        mock_class.return_value = MagicMock()
+        pipeline = get_vision_pipeline()
+        mock_class.assert_called_once_with(load_llm=False)
+        assert pipeline is not None
+
+    get_vision_pipeline.cache_clear()
+
+
+def test_get_vision_pipeline_is_cached():
+    from bookextractor.main import get_vision_pipeline
+
+    get_vision_pipeline.cache_clear()
+    with patch("bookextractor.main.ExtractionPipeline") as mock_class:
+        mock_class.return_value = MagicMock(name="pipeline_instance")
+        p1 = get_vision_pipeline()
+        p2 = get_vision_pipeline()
+        assert p1 is p2
+        assert mock_class.call_count == 1
+
+    get_vision_pipeline.cache_clear()
+
+
+def test_cli_unsupported_file_type_hits_else(tmp_path):
+    from typer.testing import CliRunner
+
+    from bookextractor.main import cli_app
+
+    runner = CliRunner()
+    input_file = tmp_path / "test.docx"
+    input_file.write_text("content")
+    output_file = tmp_path / "output.json"
+
+    with patch("bookextractor.main.ExtractionPipeline"):
+        result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file)])
+        assert result.exit_code == 1
+        assert "Unsupported file type" in result.output
 
 
 def test_cli_api_command():
@@ -282,69 +300,6 @@ def test_cli_api_command():
         assert mock_run.call_args[0][0] == app
         assert mock_run.call_args[1]["host"] == "127.0.0.1"
         assert mock_run.call_args[1]["port"] == 9001
-
-
-def test_get_pipeline_initialization():
-    from bookextractor import main
-
-    # Ensure it's reset
-    main.pipeline = None
-    main._pipeline_load_llm = True
-    with patch("bookextractor.main.ExtractionPipeline") as mock_class:
-        p = main.get_pipeline()
-        mock_class.assert_called_once()
-        assert p is not None
-        # Second call should not re-initialize
-        main.get_pipeline()
-        assert mock_class.call_count == 1
-
-
-def test_get_pipeline_load_llm_false():
-    from bookextractor import main
-
-    main.pipeline = None
-    main._pipeline_load_llm = True
-    with patch("bookextractor.main.ExtractionPipeline") as mock_class:
-        p = main.get_pipeline(load_llm=False)
-        mock_class.assert_called_once_with(max_model_len=4096, load_llm=False)
-        assert p is not None
-
-
-def test_get_pipeline_resets_singleton_when_load_llm_changes():
-    from bookextractor import main
-
-    main.pipeline = None
-    main._pipeline_load_llm = True
-    with patch("bookextractor.main.ExtractionPipeline") as mock_class:
-        main.get_pipeline(load_llm=True)
-        assert mock_class.call_count == 1
-        mock_class.reset_mock()
-
-        main.get_pipeline(load_llm=False)
-        mock_class.assert_called_once_with(max_model_len=4096, load_llm=False)
-
-        mock_class.reset_mock()
-        main.get_pipeline(load_llm=False)
-        assert mock_class.call_count == 0
-
-        main.get_pipeline(load_llm=True)
-        assert mock_class.call_count == 1
-
-
-def test_cli_unsupported_file_type_hits_else(tmp_path):
-    from typer.testing import CliRunner
-
-    from bookextractor.main import cli_app
-
-    runner = CliRunner()
-    input_file = tmp_path / "test.docx"
-    input_file.write_text("content")
-    output_file = tmp_path / "output.json"
-
-    with patch("bookextractor.main.get_pipeline"):
-        result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file)])
-        assert result.exit_code == 1
-        assert "Unsupported file type" in result.output
 
 
 def test_cli_api_mode():

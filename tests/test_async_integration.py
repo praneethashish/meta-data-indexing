@@ -31,7 +31,8 @@ async def test_extract_async_pdf(client):
 @pytest.mark.asyncio
 async def test_extract_async_image(client):
     with patch("bookextractor.main.extract_image_task") as mock_task:
-        mock_task.delay.return_value = MagicMock(id="img-job-id")
+        mock_result = MagicMock(id="img-job-id")
+        mock_task.apply_async.return_value = mock_result
 
         img_content = b"fake-image-data"
         files = {"file": ("test.jpg", img_content, "image/jpeg")}
@@ -39,7 +40,7 @@ async def test_extract_async_image(client):
 
         assert response.status_code == 200
         assert response.json() == {"job_id": "img-job-id", "status": "submitted"}
-        mock_task.delay.assert_called_once()
+        mock_task.apply_async.assert_called_once()
 
 
 @pytest.mark.asyncio

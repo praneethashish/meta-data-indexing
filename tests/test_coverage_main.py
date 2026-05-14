@@ -32,9 +32,8 @@ def test_api_command():
 
 
 def test_api_extract_unsupported_type():
-    with patch("bookextractor.main.get_pipeline"):
-        response = client.post("/extract", files={"file": ("test.docx", b"hello", "application/octet-stream")})
-        assert response.status_code == 400
+    response = client.post("/extract", files={"file": ("test.docx", b"hello", "application/octet-stream")})
+    assert response.status_code == 400
 
 
 def test_api_extract_no_filename():

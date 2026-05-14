@@ -1,6 +1,9 @@
+import json
 import logging
 import os
 from typing import Any, cast
+
+from PIL import Image
 
 try:
     from vllm import LLM, SamplingParams
@@ -94,8 +97,9 @@ class VLMClient:
             f"memory_util={config['gpu_memory_utilization']}"
         )
 
-        # Set environment variable to force device type (fixes vLLM auto-detection issues)
-        os.environ["VLLM_TARGET_DEVICE"] = config["device"]
+        # Set environment variable to force device type only if not already configured
+        if "VLLM_TARGET_DEVICE" not in os.environ:
+            os.environ["VLLM_TARGET_DEVICE"] = config["device"]
 
         VLMClient._llm = LLM(
             model=self.model_id,
@@ -117,15 +121,43 @@ class VLMClient:
         return cast(list[Any], VLMClient._llm.generate(prompts, sampling_params))
 
     async def describe_image(self, image_path: str) -> dict[str, Any]:
-        """
-        Generate description for an image.
-        Note: Currently a placeholder until full Phase 2 vision processing is implemented.
-        """
-        # In a future update, this will handle image encoding and multi-modal prompt generation
-        # for models like Qwen2-VL or Gemma-VL.
-        _ = image_path  # Silence unused argument warning
+        """Generate a rich description for an image using vLLM multimodal inference."""
+        image = Image.open(image_path).convert("RGB")
+
+        prompt_text = (
+            "Analyze this image. Return ONLY a valid JSON object with the following keys: "
+            "'description' (string, visual description), 'text_content' (string, any visible text, or null), "
+            "'language' (string, detected language, or null), "
+            "'scene_classification' (string, e.g., 'document', 'nature', 'diagram'), "
+            "'entities' (list of dicts with 'name' and 'type')."
+        )
+
+        if VLMClient._llm is None:
+            raise RuntimeError("vLLM engine not initialized")
+
+        sampling_params = SamplingParams(temperature=0.2, max_tokens=512, stop=["```"])
+        inputs = {
+            "prompt": f"<|image_1|>\n{prompt_text}",
+            "multi_modal_data": {"image": image},
+        }
+
+        outputs = VLMClient._llm.generate([inputs], sampling_params)
+        text_out = outputs[0].outputs[0].text.strip()
+
+        start = text_out.find("{")
+        end = text_out.rfind("}") + 1
+        if start != -1 and end != -1:
+            try:
+                return cast(dict[str, Any], json.loads(text_out[start:end]))
+            except json.JSONDecodeError as e:
+                logger.error(f"VLM describe_image yielded invalid JSON: {e}. Raw text: {text_out}")
+        else:
+            logger.warning("Failed to locate JSON brackets in VLM describe_image output.")
+
         return {
-            "description": "Image description not yet implemented in VLMClient wrapper.",
-            "scene_classification": "other",
+            "description": text_out[:200] if text_out else None,
             "text_content": None,
+            "language": None,
+            "scene_classification": "other",
+            "entities": [],
         }
