@@ -4,22 +4,13 @@ import os
 import re
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, cast
-
-try:
-    from vllm import SamplingParams
-except ImportError:
-
-    class _SamplingParamsStub:
-        def __init__(self, **kwargs: Any) -> None:
-            pass
-
-    SamplingParams = _SamplingParamsStub  # type: ignore
+from typing import Any
 
 from .content_detector import detect_content_type
 from .confidence_scorer import calculate_book_confidence, calculate_magazine_confidence
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
+from .llm_backend import TextLLMBackend, VisionLLMBackend
 from .models import (
     BenchmarkResult,
     BookMetadata,
@@ -49,8 +40,12 @@ DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "
 class ExtractionPipeline:
     def __init__(self, model_id: str | None = None, max_model_len: int = 4096, load_vlm: bool = True):
         self.vlm_client: VLMClient | None = None
+        self._text_backend: TextLLMBackend | None = None
+        self._vision_backend: VisionLLMBackend | None = None
         if load_vlm:
             self.vlm_client = VLMClient.get_instance(model_id=model_id, max_model_len=max_model_len)
+            self._text_backend = TextLLMBackend(self.vlm_client._model_manager.get_model())
+            self._vision_backend = VisionLLMBackend(self.vlm_client._model_manager.get_model())
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         # Call vParse OCR API with the selected language
@@ -206,44 +201,21 @@ class ExtractionPipeline:
     def extract_magazine_semantic_fields(self, text: str, lang: str = "te") -> dict[str, Any]:
         lang_label = LANGUAGE_LABELS.get(lang, DEFAULT_LANGUAGE_LABEL)
         prompt = MAGAZINE_EXTRACTION_PROMPT.format(lang_label=lang_label, text=text[:MAGAZINE_EXTRACTION_MAX_TEXT_LENGTH])
-        if self.vlm_client is None:
+        if self._text_backend is None:
             return {}
-        text_out = ""
-        try:
-            sampling_params = SamplingParams(temperature=0.1, max_tokens=512, stop=["```"])
-            outputs = self.vlm_client.generate([prompt], sampling_params)
-            text_out = outputs[0].outputs[0].text.strip()
-            start = text_out.find("{")
-            end = text_out.rfind("}") + 1
-            if start != -1 and end != -1:
-                raw = text_out[start:end]
-                logger.info(f"Raw LLM magazine output: {raw}")
-                result = cast(dict[str, Any], json.loads(raw))
-                return result
-            else:
-                logger.warning(f"No JSON found in LLM output: {text_out}")
-        except Exception as e:
-            logger.warning(f"Failed to parse magazine JSON: {e}, raw: {text_out}")
+        result = self._text_backend.generate_and_extract(prompt, temperature=0.1, max_tokens=512)
+        if result is not None:
+            logger.info(f"Raw LLM magazine output: {result}")
+            return result
         return {}
 
     def extract_semantic_fields(self, text: str) -> dict[str, Any]:
         prompt = BOOK_EXTRACTION_PROMPT.format(text=text[:BOOK_EXTRACTION_MAX_TEXT_LENGTH])
-        try:
-            if self.vlm_client is None:
-                return {}
-            sampling_params = SamplingParams(temperature=0.7, max_tokens=256, stop=["```"])
-            outputs = self.vlm_client.generate([prompt], sampling_params)
-            text_out = outputs[0].outputs[0].text.strip()
-            start = text_out.find("{")
-            end = text_out.rfind("}") + 1
-            if start != -1 and end != -1:
-                return cast(dict[str, Any], json.loads(text_out[start:end]))
-            else:
-                logger.warning("Failed to locate JSON brackets in LLM output.")
-        except json.JSONDecodeError as e:
-            logger.error(f"LLM output yielded invalid JSON: {e}. Raw text: {text_out}")
-        except Exception as e:
-            logger.exception(f"Unexpected error during semantic extraction: {e}")
+        if self._text_backend is None:
+            return {}
+        result = self._text_backend.generate_and_extract(prompt, max_tokens=256)
+        if result is not None:
+            return result
         return {}
 
     

@@ -9,13 +9,18 @@ from bookextractor.pipeline import ExtractionPipeline
 @pytest.fixture
 def mock_vlm_client():
     mock = MagicMock()
-    mock_output = MagicMock()
-    mock_output.outputs = [
-        MagicMock(
-            text='{"title": "Test Book", "author": "Test Author", "publisher": "Test Publisher", "published_date": "2023"}'  # noqa: E501
-        )
-    ]
-    mock.generate.return_value = [mock_output]
+    return mock
+
+
+@pytest.fixture
+def mock_text_backend():
+    mock = MagicMock()
+    mock.generate_and_extract.return_value = {
+        "title": "Test Book",
+        "author": "Test Author",
+        "publisher": "Test Publisher",
+        "published_date": "2023",
+    }
     return mock
 
 
@@ -87,7 +92,7 @@ def sample_image_metadata():
 
 
 @pytest.mark.asyncio
-async def test_process_pdf_calls_vparse(mock_vlm_client, sample_vparse_response, tmp_path):
+async def test_process_pdf_calls_vparse(mock_vlm_client, mock_text_backend, sample_vparse_response, tmp_path):
     pdf_path = str(tmp_path / "test.pdf")
     pdf_path = tmp_path / "test.pdf"
     pdf_path.write_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF")
@@ -95,6 +100,7 @@ async def test_process_pdf_calls_vparse(mock_vlm_client, sample_vparse_response,
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):  # noqa: ARG005
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
+        pipeline._text_backend = mock_text_backend
 
         with (
             patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
@@ -111,13 +117,14 @@ async def test_process_pdf_calls_vparse(mock_vlm_client, sample_vparse_response,
 
 
 @pytest.mark.asyncio
-async def test_process_pdf_fallback_content_list(mock_vlm_client, sample_vparse_content_list, tmp_path):
+async def test_process_pdf_fallback_content_list(mock_vlm_client, mock_text_backend, sample_vparse_content_list, tmp_path):
     pdf_path = tmp_path / "test.pdf"
     pdf_path.write_bytes(b"%PDF-1.4\n")
 
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):  # noqa: ARG005
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
+        pipeline._text_backend = mock_text_backend
 
         with (
             patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
@@ -167,13 +174,14 @@ async def test_process_image_benchmark_mode(sample_image_metadata, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_process_text_file_reads_content(mock_vlm_client, tmp_path):
+async def test_process_text_file_reads_content(mock_vlm_client, mock_text_backend, tmp_path):
     text_path = tmp_path / "test.md"
     text_path.write_text("# Test Book\nBy Test Author")
 
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):  # noqa: ARG005
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
+        pipeline._text_backend = mock_text_backend
 
         with (
             patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
@@ -185,10 +193,11 @@ async def test_process_text_file_reads_content(mock_vlm_client, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_extract_from_text_with_isbn(mock_vlm_client, mock_isbn_lookup, sample_book_text):
+async def test_extract_from_text_with_isbn(mock_vlm_client, mock_text_backend, mock_isbn_lookup, sample_book_text):
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):  # noqa: ARG005
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
+        pipeline._text_backend = mock_text_backend
 
         with (
             patch("bookextractor.pipeline.extract_isbn_candidates", return_value=["978-0123456789"]),
@@ -202,10 +211,11 @@ async def test_extract_from_text_with_isbn(mock_vlm_client, mock_isbn_lookup, sa
 
 
 @pytest.mark.asyncio
-async def test_extract_from_text_without_isbn(mock_vlm_client, sample_book_text):
+async def test_extract_from_text_without_isbn(mock_vlm_client, mock_text_backend, sample_book_text):
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):  # noqa: ARG005
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
+        pipeline._text_backend = mock_text_backend
 
         with (
             patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
@@ -219,10 +229,11 @@ async def test_extract_from_text_without_isbn(mock_vlm_client, sample_book_text)
 
 
 @pytest.mark.asyncio
-async def test_extract_from_text_benchmark_mode(mock_vlm_client, sample_book_text):
+async def test_extract_from_text_benchmark_mode(mock_vlm_client, mock_text_backend, sample_book_text):
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):  # noqa: ARG005
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
+        pipeline._text_backend = mock_text_backend
 
         with (
             patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
@@ -244,7 +255,7 @@ def test_pipeline_init(mock_vlm_instance):
 
 
 @pytest.mark.asyncio
-async def test_process_pdf_invalid_json_fallback(mock_vlm_client, tmp_path):
+async def test_process_pdf_invalid_json_fallback(mock_vlm_client, mock_text_backend, tmp_path):
     pdf_path = tmp_path / "test.pdf"
     pdf_path.write_bytes(b"%PDF-1.4")
 
@@ -254,6 +265,7 @@ async def test_process_pdf_invalid_json_fallback(mock_vlm_client, tmp_path):
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
+        pipeline._text_backend = mock_text_backend
 
         with (
             patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
@@ -304,13 +316,14 @@ def test_calculate_confidence_without_data():
 
 
 @pytest.mark.asyncio
-async def test_process_pdf_benchmark_mode(mock_vlm_client, sample_vparse_response, tmp_path):
+async def test_process_pdf_benchmark_mode(mock_vlm_client, mock_text_backend, sample_vparse_response, tmp_path):
     pdf_path = tmp_path / "test.pdf"
     pdf_path.write_bytes(b"%PDF-1.4")
 
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
+        pipeline._text_backend = mock_text_backend
 
         with (
             patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
@@ -324,18 +337,20 @@ async def test_process_pdf_benchmark_mode(mock_vlm_client, sample_vparse_respons
 
 
 @pytest.mark.asyncio
-async def test_extract_from_text_magazine(mock_vlm_client):
+async def test_extract_from_text_magazine(mock_vlm_client, mock_text_backend):
     magazine_text = "చందమామ మాసపత్రిక ఆగస్టు 1948 సంచిక 2 ఖరీదు 0-6-0"
 
-    mock_output = MagicMock()
-    mock_output.outputs = [
-        MagicMock(text='{"magazine_name": "చందమామ", "issue_date": "August 1948", "issue_number": "2", "price": "0-6-0"}')
-    ]
-    mock_vlm_client.generate.return_value = [mock_output]
+    mock_text_backend.generate_and_extract.return_value = {
+        "magazine_name": "చందమామ",
+        "issue_date": "August 1948",
+        "issue_number": "2",
+        "price": "0-6-0",
+    }
 
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
+        pipeline._text_backend = mock_text_backend
 
         result = await pipeline.extract_from_text(magazine_text)
 
@@ -348,16 +363,17 @@ async def test_extract_from_text_magazine(mock_vlm_client):
 
 
 @pytest.mark.asyncio
-async def test_extract_from_text_magazine_benchmark(mock_vlm_client):
+async def test_extract_from_text_magazine_benchmark(mock_vlm_client, mock_text_backend):
     magazine_text = "ఆంధ్రజ్యోతి మాసపత్రిక"
 
-    mock_output = MagicMock()
-    mock_output.outputs = [MagicMock(text='{"magazine_name": "ఆంధ్రజ్యోతి"}')]
-    mock_vlm_client.generate.return_value = [mock_output]
+    mock_text_backend.generate_and_extract.return_value = {
+        "magazine_name": "ఆంధ్రజ్యోతి",
+    }
 
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
+        pipeline._text_backend = mock_text_backend
 
         result = await pipeline.extract_from_text(magazine_text, benchmark=True)
 
@@ -367,7 +383,7 @@ async def test_extract_from_text_magazine_benchmark(mock_vlm_client):
 
 
 @pytest.mark.asyncio
-async def test_extract_from_text_magazine_json_input(mock_vlm_client, tmp_path):
+async def test_extract_from_text_magazine_json_input(mock_vlm_client, mock_text_backend, tmp_path):
     json_input = tmp_path / "input.json"
     json_input.write_text(
         json.dumps(
@@ -378,13 +394,15 @@ async def test_extract_from_text_magazine_json_input(mock_vlm_client, tmp_path):
         )
     )
 
-    mock_output = MagicMock()
-    mock_output.outputs = [MagicMock(text='{"magazine_name": "చందమామ", "issue_date": "August 1948"}')]
-    mock_vlm_client.generate.return_value = [mock_output]
+    mock_text_backend.generate_and_extract.return_value = {
+        "magazine_name": "చందమామ",
+        "issue_date": "August 1948",
+    }
 
     with patch.object(ExtractionPipeline, "__init__", lambda *_: None):
         pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
         pipeline.vlm_client = mock_vlm_client
+        pipeline._text_backend = mock_text_backend
 
         with (
             patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),

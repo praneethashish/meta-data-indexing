@@ -67,6 +67,27 @@ class TextLLMBackend(LLMBackend):
         logger.warning("Failed to locate JSON brackets in LLM output.")
         return None
 
+    def generate_and_extract(
+        self, prompt: str, temperature: float | None = None, max_tokens: int | None = None
+    ) -> dict[str, Any] | None:
+        """Generate text from a prompt and extract JSON from the output.
+
+        Returns the parsed JSON dict, or None if generation/extraction failed.
+        """
+        params_kwargs: dict[str, Any] = {
+            "temperature": temperature if temperature is not None else self.DEFAULT_TEMPERATURE,
+            "max_tokens": max_tokens if max_tokens is not None else self.DEFAULT_MAX_TOKENS,
+            "stop": self.DEFAULT_STOP,
+        }
+        sampling_params = SamplingParams(**params_kwargs)
+        try:
+            outputs = self.generate([prompt], sampling_params)
+            text_out = outputs[0].outputs[0].text.strip()
+            return self.extract_json_from_output(text_out)
+        except Exception as e:
+            logger.warning(f"generate_and_extract failed: {e}")
+            return None
+
 
 class VisionLLMBackend(LLMBackend):
     """LLM backend for multimodal (vision + text) inference."""
