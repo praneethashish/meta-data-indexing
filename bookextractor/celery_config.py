@@ -30,9 +30,9 @@ task_queues = {
     },
 }
 
-# Mapping specific tasks to queues (to be refined in tasks.py)
+# Mapping specific tasks to default queues.
+# Image tasks are routed at runtime based on use_vlm flag (see main.py:extract_async).
 task_routes = {
-    "bookextractor.extract_image": {"queue": "default_queue"},
     "bookextractor.extract_pdf": {"queue": "vlm_queue"},
     "bookextractor.extract_text": {"queue": "vlm_queue"},
 }
