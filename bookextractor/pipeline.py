@@ -17,16 +17,15 @@ except ImportError:
     SamplingParams = _SamplingParamsStub  # type: ignore
 
 from .content_detector import detect_content_type
+from .confidence_scorer import calculate_book_confidence, calculate_magazine_confidence
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
 from .models import (
     BenchmarkResult,
     BookMetadata,
-    ConfidenceScores,
     ExtractionResult,
     ImageMetadata,
     ImageVLMMetadata,
-    MagazineConfidenceScores,
     MagazineMetadata,
 )
 from .prompts import (
@@ -163,7 +162,7 @@ class ExtractionPipeline:
         # Confidence Scoring
         all_candidates: dict[str, list[Any]] = {k: [v] for k, v in final_data.items() if k != "isbn"}
         all_candidates["isbn"] = isbns
-        confidence = self.calculate_confidence(final_data, all_candidates, bool(isbn))
+        confidence = calculate_book_confidence(final_data, all_candidates, bool(isbn))
 
         book_meta = BookMetadata(
             title=final_data.get("title"),
@@ -186,14 +185,7 @@ class ExtractionPipeline:
         llm_result = self.extract_magazine_semantic_fields(text, lang=lang)
 
         # Build confidence scores
-        confidence = MagazineConfidenceScores(
-            magazine_name=0.8 if llm_result.get("magazine_name") else 0.0,
-            editor=0.7 if llm_result.get("editor") else 0.0,
-            publisher=0.7 if llm_result.get("publisher") else 0.0,
-            issue_date=0.8 if llm_result.get("issue_date") else 0.0,
-            issue_number=0.6 if llm_result.get("issue_number") else 0.0,
-            price=0.6 if llm_result.get("price") else 0.0,
-        )
+        confidence = calculate_magazine_confidence(llm_result)
 
         magazine_meta = MagazineMetadata(
             magazine_name=llm_result.get("magazine_name"),
@@ -256,17 +248,4 @@ class ExtractionPipeline:
             logger.exception(f"Unexpected error during semantic extraction: {e}")
         return {}
 
-    def calculate_confidence(
-        self, final: dict[str, Any], candidates: dict[str, list[Any]], has_isbn: bool
-    ) -> ConfidenceScores:
-        scores = {}
-        for field in ["title", "author", "publisher", "published_date"]:
-            if not final.get(field):
-                scores[field] = 0.0
-            else:
-                vals = [v for v in candidates[field] if v]
-                consistency = vals.count(final[field]) / len(vals) if vals else 0.5
-                scores[field] = min(1.0, 0.5 + 0.5 * consistency)
-
-        scores["isbn"] = 1.0 if has_isbn else 0.0
-        return ConfidenceScores(**scores)
+    

@@ -267,44 +267,40 @@ async def test_process_pdf_invalid_json_fallback(mock_vlm_client, tmp_path):
 
 
 def test_calculate_confidence_with_data():
-    with patch.object(ExtractionPipeline, "__init__", lambda *_: None):  # noqa: ARG005
-        pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
-        pipeline.vlm_client = None
+    from bookextractor.confidence_scorer import calculate_book_confidence
 
-        final = {"title": "Test Book", "author": "Test Author", "publisher": "Test Publisher", "published_date": "2023"}
+    final = {"title": "Test Book", "author": "Test Author", "publisher": "Test Publisher", "published_date": "2023"}
 
-        candidates = {
-            "title": ["Test Book", "Test Book", "Other Title"],
-            "author": ["Test Author"],
-            "publisher": ["Test Publisher", "Other Publisher"],
-            "published_date": ["2023", "2023", "2023"],
-        }
+    candidates = {
+        "title": ["Test Book", "Test Book", "Other Title"],
+        "author": ["Test Author"],
+        "publisher": ["Test Publisher", "Other Publisher"],
+        "published_date": ["2023", "2023", "2023"],
+    }
 
-        scores = pipeline.calculate_confidence(final, candidates, has_isbn=True)
+    scores = calculate_book_confidence(final, candidates, has_isbn=True)
 
-        assert scores.title > 0.5
-        assert scores.author == 1.0
-        assert 0.5 <= scores.publisher <= 1.0
-        assert scores.published_date == 1.0
-        assert scores.isbn == 1.0
+    assert scores.title > 0.5
+    assert scores.author == 1.0
+    assert 0.5 <= scores.publisher <= 1.0
+    assert scores.published_date == 1.0
+    assert scores.isbn == 1.0
 
 
 def test_calculate_confidence_without_data():
-    with patch.object(ExtractionPipeline, "__init__", lambda *_: None):  # noqa: ARG005
-        pipeline = ExtractionPipeline.__new__(ExtractionPipeline)
-        pipeline.vlm_client = None
+    from bookextractor.confidence_scorer import calculate_book_confidence
 
-        final = {"title": None, "author": None, "publisher": None, "published_date": None}
+    final = {"title": None, "author": None, "publisher": None, "published_date": None}
 
-        candidates: dict = {"title": [], "author": [], "publisher": [], "published_date": []}
+    candidates: dict = {"title": [], "author": [], "publisher": [], "published_date": []}
 
-        scores = pipeline.calculate_confidence(final, candidates, has_isbn=False)
+    scores = calculate_book_confidence(final, candidates, has_isbn=False)
 
-        assert scores.title == 0.0
-        assert scores.author == 0.0
-        assert scores.publisher == 0.0
-        assert scores.published_date == 0.0
-        assert scores.isbn == 0.0
+    assert scores.title == 0.0
+    assert scores.author == 0.0
+    assert scores.publisher == 0.0
+    assert scores.published_date == 0.0
+    assert scores.isbn == 0.0
 
 
 @pytest.mark.asyncio
