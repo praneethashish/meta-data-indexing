@@ -12,7 +12,7 @@ from .confidence_scorer import calculate_book_confidence, calculate_magazine_con
 from .exceptions import ModelNotAvailableError, ParsingError
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
-from .llm_backend import TextLLMBackend, VisionLLMBackend
+from .llm_backend import TextLLMBackend
 from .models import (
     BenchmarkResult,
     BookMetadata,
@@ -43,11 +43,9 @@ class ExtractionPipeline:
     def __init__(self, model_id: str | None = None, max_model_len: int = 4096, load_vlm: bool = True):
         self.vlm_client: VLMClient | None = None
         self._text_backend: TextLLMBackend | None = None
-        self._vision_backend: VisionLLMBackend | None = None
         if load_vlm:
             self.vlm_client = VLMClient.get_instance(model_id=model_id, max_model_len=max_model_len)
             self._text_backend = TextLLMBackend(self.vlm_client._model_manager.get_model())
-            self._vision_backend = VisionLLMBackend(self.vlm_client._model_manager.get_model())
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         # Call vParse OCR API with the selected language
