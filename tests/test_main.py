@@ -57,7 +57,8 @@ def test_health_endpoint(test_client):
     response = test_client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json()["status"] == "ok"
+    assert "model_ready" in response.json()
 
 
 def test_extract_jpg_routes_correctly(test_client, override_vision_pipeline):

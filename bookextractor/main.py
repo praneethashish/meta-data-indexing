@@ -37,7 +37,10 @@ def get_vision_pipeline():
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    from .model_manager import ModelManager
+
+    manager = ModelManager.get_instance()
+    return {"status": "ok", "model_ready": manager.is_loaded()}
 
 
 @app.post("/extract/async")
