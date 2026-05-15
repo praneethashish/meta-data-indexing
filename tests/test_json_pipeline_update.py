@@ -5,19 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from bookextractor.pipeline import ExtractionPipeline
-
-
-@pytest.fixture
-def pipeline():
-    # Mock VLMClient to avoid loading actual model during tests
-    with patch("bookextractor.vlm_client.VLMClient.get_instance"):
-        p = ExtractionPipeline()
-        p.vlm_client = MagicMock()
-        p._text_backend = MagicMock()
-        p._vision_backend = MagicMock()
-        return p
-
 
 @pytest.mark.asyncio
 async def test_process_json_with_transcription(pipeline):
