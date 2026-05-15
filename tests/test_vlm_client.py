@@ -121,16 +121,25 @@ def test_vlm_client_generate_without_init():
         client.generate(["prompt"])
 
 
-def test_vlm_client_auto_detect_cached():
+def test_vlm_client_delegates_model_detection_to_manager():
     _reset_vlm()
 
-    with patch("bookextractor.models_registry.get_cached_models", return_value=[]):
-        result = VLMClient._detect_cached_model()
-        assert result == "Qwen/Qwen2.5-VL-7B-Instruct"
+    class FakeLLM:
+        __name__ = "LLM"
 
-    with patch("bookextractor.models_registry.get_cached_models", return_value=["myorg/mymodel"]):
-        result = VLMClient._detect_cached_model()
-        assert result == "myorg/mymodel"
+        def __init__(self, **_kwargs):
+            pass
+
+    with (
+        patch("bookextractor.hardware.get_vllm_config", return_value=_MOCK_CONFIG),
+        patch("bookextractor.model_manager.LLM", FakeLLM),
+    ):
+        manager = ModelManager.get_instance()
+        manager.get_or_create(model_id=None, max_model_len=4096)
+        assert manager.model_id is not None
+        assert manager.is_loaded()
+
+    _reset_vlm()
 
 
 def test_vllm_target_device_env_guard(monkeypatch):

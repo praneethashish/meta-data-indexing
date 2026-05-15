@@ -11,7 +11,6 @@ from bookextractor.models_registry import (
     get_hardware_compatible_models,
     is_model_cached,
 )
-from bookextractor.vlm_client import VLMClient
 
 
 class TestModelsRegistry:
@@ -123,8 +122,35 @@ class TestModelsRegistry:
             assert m["min_vram_gb"] > 0, f"Invalid min_vram for {m['id']}"
 
 
-class TestVLMClientAutoDetect:
-    def test_detect_cached_model_default(self, monkeypatch):
-        monkeypatch.setattr("bookextractor.models_registry.get_cached_models", lambda: [])
-        result = VLMClient._detect_cached_model()
-        assert result == "Qwen/Qwen2.5-VL-7B-Instruct"
+class TestModelManagerAutoDetect:
+    def test_get_or_create_auto_detects_when_no_model_id(self):
+        from unittest.mock import patch
+
+        from bookextractor.model_manager import ModelManager
+
+        ModelManager.reset()
+
+        class FakeLLM:
+            __name__ = "LLM"
+
+            def __init__(self, **_kwargs):
+                pass
+
+        mock_config = {
+            "device": "cuda",
+            "dtype": "float16",
+            "tensor_parallel_size": 1,
+            "gpu_memory_utilization": 0.9,
+        }
+
+        with (
+            patch("bookextractor.hardware.get_vllm_config", return_value=mock_config),
+            patch("bookextractor.model_manager.LLM", FakeLLM),
+            patch("bookextractor.models_registry.get_cached_models", return_value=[]),
+        ):
+            manager = ModelManager.get_instance()
+            manager.get_or_create(model_id=None, max_model_len=4096)
+            assert manager.model_id == "Qwen/Qwen2.5-VL-7B-Instruct"
+            assert manager.is_loaded()
+
+        ModelManager.reset()
