@@ -9,6 +9,7 @@ from typing import Any
 
 from .content_detector import detect_content_type
 from .confidence_scorer import calculate_book_confidence, calculate_magazine_confidence
+from .exceptions import ModelNotAvailableError, ParsingError
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
 from .llm_backend import TextLLMBackend, VisionLLMBackend
@@ -132,7 +133,11 @@ class ExtractionPipeline:
         isbns = extract_isbn_candidates(text)
 
         # LLM Semantic Extraction
-        llm_result = self.extract_semantic_fields(text)
+        try:
+            llm_result = self.extract_semantic_fields(text)
+        except (ModelNotAvailableError, ParsingError) as e:
+            logger.warning(f"Book metadata extraction failed: {e}")
+            llm_result = {}
 
         final_data = {
             "title": llm_result.get("title"),
@@ -176,7 +181,11 @@ class ExtractionPipeline:
 
     async def _extract_magazine_metadata(self, text: str, benchmark: bool = False, lang: str = "te") -> dict[str, Any]:
         # LLM Semantic Extraction for magazines
-        llm_result = self.extract_magazine_semantic_fields(text, lang=lang)
+        try:
+            llm_result = self.extract_magazine_semantic_fields(text, lang=lang)
+        except (ModelNotAvailableError, ParsingError) as e:
+            logger.warning(f"Magazine metadata extraction failed: {e}")
+            llm_result = {}
 
         # Build confidence scores
         confidence = calculate_magazine_confidence(llm_result)
@@ -203,21 +212,21 @@ class ExtractionPipeline:
         lang_label = LANGUAGE_LABELS.get(lang, DEFAULT_LANGUAGE_LABEL)
         prompt = MAGAZINE_EXTRACTION_PROMPT.format(lang_label=lang_label, text=text[:MAGAZINE_EXTRACTION_MAX_TEXT_LENGTH])
         if self._text_backend is None:
-            return {}
+            raise ModelNotAvailableError()
         result = self._text_backend.generate_and_extract(prompt, temperature=0.1, max_tokens=512)
         if result is not None:
             logger.info(f"Raw LLM magazine output: {result}")
             return result
-        return {}
+        raise ParsingError("Magazine extraction prompt did not produce valid JSON")
 
     def extract_semantic_fields(self, text: str) -> dict[str, Any]:
         prompt = BOOK_EXTRACTION_PROMPT.format(text=text[:BOOK_EXTRACTION_MAX_TEXT_LENGTH])
         if self._text_backend is None:
-            return {}
+            raise ModelNotAvailableError()
         result = self._text_backend.generate_and_extract(prompt, max_tokens=256)
         if result is not None:
             return result
-        return {}
+        raise ParsingError("Book extraction prompt did not produce valid JSON")
 
     def process_pdf_sync(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         """Synchronous wrapper for process_pdf. Safe for Celery tasks."""
