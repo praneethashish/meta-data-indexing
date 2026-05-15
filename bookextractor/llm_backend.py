@@ -16,6 +16,18 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def parse_json_from_text(text_out: str) -> dict[str, Any] | None:
+    """Extract and parse the first JSON object found in text."""
+    start = text_out.find("{")
+    end = text_out.rfind("}") + 1
+    if start == -1 or end == 0:
+        return None
+    try:
+        return cast(dict[str, Any], json.loads(text_out[start:end]))
+    except json.JSONDecodeError:
+        return None
+
+
 class LLMBackend(ABC):
     """Abstract interface for LLM inference backends."""
 
@@ -56,15 +68,10 @@ class TextLLMBackend(LLMBackend):
 
     def extract_json_from_output(self, text_out: str) -> dict[str, Any] | None:
         """Extract the first JSON object from LLM output text."""
-        start = text_out.find("{")
-        end = text_out.rfind("}") + 1
-        if start != -1 and end != -1:
-            try:
-                return cast(dict[str, Any], json.loads(text_out[start:end]))
-            except json.JSONDecodeError as e:
-                logger.error(f"LLM output yielded invalid JSON: {e}. Raw text: {text_out[:200]}")
-                return None
-        logger.warning("Failed to locate JSON brackets in LLM output.")
+        result = parse_json_from_text(text_out)
+        if result is not None:
+            return result
+        logger.warning("Failed to locate or parse JSON brackets in LLM output.")
         return None
 
     def generate_and_extract(
