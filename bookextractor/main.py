@@ -161,11 +161,8 @@ async def extract(
         with open(temp_path, "wb") as buffer:
             buffer.write(await file.read())
 
-        try:
-            result = await vision_pipeline.process_image(temp_path)
-            return result
-        finally:
-            pass
+        result = await vision_pipeline.process_image(temp_path)
+        return result
 
 
 @cli_app.callback()
