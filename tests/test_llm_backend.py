@@ -21,14 +21,6 @@ class MockLLMEngine:
         return self._outputs
 
 
-@pytest.mark.skipif(
-    True,
-    reason="Requires vLLM SamplingParams; tested via mocks in test_vlm_client.py",
-)
-def test_text_backend_with_real_vllm():
-    pass
-
-
 def test_text_backend_is_ready_when_model_loaded():
     mock_model = MockLLMEngine()
     backend = TextLLMBackend(model=mock_model)
