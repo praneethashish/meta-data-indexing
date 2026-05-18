@@ -1,3 +1,4 @@
+import os
 import threading
 from unittest.mock import MagicMock, patch
 
@@ -102,4 +103,33 @@ def test_model_manager_thread_safety():
     assert len(results) == 10
     # All instances should be the same
     assert all(r is results[0] for r in results)
+    ModelManager.reset()
+
+
+def test_vllm_target_device_env_guard(monkeypatch):
+    from unittest.mock import patch
+
+    from bookextractor.model_manager import ModelManager
+
+    ModelManager.reset()
+
+    monkeypatch.setenv("VLLM_TARGET_DEVICE", "custom_tpu_device")
+
+    config = {"device": "cuda", "dtype": "float16", "tensor_parallel_size": 1, "gpu_memory_utilization": 0.9}
+
+    class FakeLLM:
+        __name__ = "LLM"
+
+        def __init__(self, **_kwargs):
+            pass
+
+    with (
+        patch("bookextractor.hardware.get_vllm_config", return_value=config),
+        patch("bookextractor.model_manager.LLM", FakeLLM),
+    ):
+        manager = ModelManager()
+        manager.get_or_create(model_id="test-model", max_model_len=4096)
+
+        assert os.environ["VLLM_TARGET_DEVICE"] == "custom_tpu_device"
+
     ModelManager.reset()

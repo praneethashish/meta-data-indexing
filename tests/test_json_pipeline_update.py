@@ -9,7 +9,7 @@ import pytest
 @pytest.mark.asyncio
 async def test_process_json_with_transcription(pipeline):
     # Mock LLM generation through text backend
-    pipeline._text_backend.generate_and_extract = MagicMock(
+    pipeline.client.generate_and_extract = MagicMock(
         return_value={"title": "Chandamama", "author": "Chakrapani"}
     )
 
@@ -53,7 +53,7 @@ async def test_process_json_with_transcription(pipeline):
 @pytest.mark.asyncio
 async def test_process_json_fallback_if_no_transcription(pipeline):
     # Mock LLM generation through text backend
-    pipeline._text_backend.generate_and_extract = MagicMock(
+    pipeline.client.generate_and_extract = MagicMock(
         return_value={"title": "Raw JSON Title"}
     )
 
@@ -95,7 +95,7 @@ async def test_truncation_limit_increased(pipeline):
         captured_prompt["value"] = prompt
         return {"title": "Secret"}
 
-    pipeline._text_backend.generate_and_extract = MagicMock(side_effect=mock_generate_and_extract)
+    pipeline.client.generate_and_extract = MagicMock(side_effect=mock_generate_and_extract)
 
     pipeline.extract_semantic_fields(long_text)
 
