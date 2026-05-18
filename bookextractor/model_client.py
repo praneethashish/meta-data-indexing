@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from typing import Any, cast
@@ -14,24 +15,39 @@ except ImportError:
 
     SamplingParams = _SamplingParamsStub  # type: ignore
 
-from .llm_backend import parse_json_from_text
 from .model_manager import ModelManager
 from .prompts import IMAGE_ANALYSIS_PROMPT
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_TEMPERATURE = 0.7
+DEFAULT_MAX_TOKENS = 512
+DEFAULT_STOP = ["```"]
 
-class VLMClient:
-    """Unified wrapper for Gemma/Qwen-VL vLLM inference.
 
-    Delegates model lifecycle management (loading, caching, thread-safe
-    access) to ModelManager. Use get_instance() for the shared singleton.
+def parse_json_from_text(text_out: str) -> dict[str, Any] | None:
+    """Extract and parse the first JSON object found in text."""
+    start = text_out.find("{")
+    end = text_out.rfind("}") + 1
+    if start == -1 or end == 0:
+        return None
+    try:
+        return cast(dict[str, Any], json.loads(text_out[start:end]))
+    except json.JSONDecodeError:
+        return None
+
+
+class ModelClient:
+    """Unified client for the vLLM model engine.
+
+    Handles text generation, multimodal image description, JSON
+    extraction, and model lifecycle management. Singleton per process
+    via get_instance().
     """
 
-    _instance: "VLMClient | None" = None
+    _instance: "ModelClient | None" = None
 
     def __init__(self, model_id: str | None = None, max_model_len: int = 4096):
-        """Initialize the VLMClient. Note: Use get_instance() for shared singleton."""
         self.model_id = model_id or os.getenv("VLLM_MODEL_ID") or os.getenv("VLLM_MODEL")
         self.max_model_len = max_model_len
         self._model_manager = ModelManager.get_instance()
@@ -43,25 +59,44 @@ class VLMClient:
             self.model_id = self._model_manager.model_id
 
     @classmethod
-    def get_instance(cls, model_id: str | None = None, max_model_len: int = 4096) -> "VLMClient":
-        """Get or create a singleton instance of VLMClient."""
+    def get_instance(cls, model_id: str | None = None, max_model_len: int = 4096) -> "ModelClient":
         if cls._instance is None:
             cls._instance = cls(model_id=model_id, max_model_len=max_model_len)
         return cls._instance
 
-    def generate(self, prompts: list[str], sampling_params: Any = None) -> list[Any]:
-        """Generate text from one or more prompts."""
-        if sampling_params is None:
-            sampling_params = SamplingParams(temperature=0.7, max_tokens=512)
+    def is_ready(self) -> bool:
+        return self._model_manager.is_loaded()
 
+    def generate(self, prompts: list[str], sampling_params: Any = None) -> list[Any]:
+        if sampling_params is None:
+            sampling_params = SamplingParams(
+                temperature=DEFAULT_TEMPERATURE,
+                max_tokens=DEFAULT_MAX_TOKENS,
+                stop=DEFAULT_STOP,
+            )
         model = self._model_manager.get_model()
         if model is None:
             raise RuntimeError("vLLM engine not initialized")
-
         return cast(list[Any], model.generate(prompts, sampling_params))
 
+    def generate_and_extract(
+        self, prompt: str, temperature: float | None = None, max_tokens: int | None = None
+    ) -> dict[str, Any] | None:
+        params_kwargs: dict[str, Any] = {
+            "temperature": temperature if temperature is not None else DEFAULT_TEMPERATURE,
+            "max_tokens": max_tokens if max_tokens is not None else DEFAULT_MAX_TOKENS,
+            "stop": DEFAULT_STOP,
+        }
+        sampling_params = SamplingParams(**params_kwargs)
+        try:
+            outputs = self.generate([prompt], sampling_params)
+            text_out = outputs[0].outputs[0].text.strip()
+            return parse_json_from_text(text_out)
+        except Exception as e:
+            logger.warning(f"generate_and_extract failed: {e}")
+            return None
+
     async def describe_image(self, image_path: str) -> dict[str, Any]:
-        """Generate a rich description for an image using vLLM multimodal inference."""
         image = Image.open(image_path).convert("RGB")
 
         prompt_text = IMAGE_ANALYSIS_PROMPT
@@ -83,7 +118,7 @@ class VLMClient:
         if result is not None:
             return result
 
-        logger.warning("Failed to parse JSON from VLM describe_image output.")
+        logger.warning("Failed to parse JSON from describe_image output.")
         return {
             "description": text_out[:200] if text_out else None,
             "text_content": None,
@@ -91,3 +126,9 @@ class VLMClient:
             "scene_classification": "other",
             "entities": [],
         }
+
+    @classmethod
+    def reset(cls) -> None:
+        """Reset singleton state. For testing only."""
+        cls._instance = None
+        ModelManager.reset()

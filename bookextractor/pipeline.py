@@ -12,7 +12,7 @@ from .confidence_scorer import calculate_book_confidence, calculate_magazine_con
 from .exceptions import ModelNotAvailableError, ParsingError
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
-from .llm_backend import TextLLMBackend
+from .model_client import ModelClient
 from .models import (
     BenchmarkResult,
     BookMetadata,
@@ -30,7 +30,6 @@ from .prompts import (
     MAGAZINE_EXTRACTION_PROMPT,
 )
 from .validation import extract_isbn_candidates
-from .vlm_client import VLMClient
 from .vparse_client import parse_pdf_via_vparse
 
 logger = logging.getLogger(__name__)
@@ -41,11 +40,9 @@ DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "
 
 class ExtractionPipeline:
     def __init__(self, model_id: str | None = None, max_model_len: int = 4096, load_vlm: bool = True):
-        self.vlm_client: VLMClient | None = None
-        self._text_backend: TextLLMBackend | None = None
+        self.client: ModelClient | None = None
         if load_vlm:
-            self.vlm_client = VLMClient.get_instance(model_id=model_id, max_model_len=max_model_len)
-            self._text_backend = TextLLMBackend(self.vlm_client._model_manager.get_model())
+            self.client = ModelClient.get_instance(model_id=model_id, max_model_len=max_model_len)
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         # Call vParse OCR API with the selected language
@@ -88,8 +85,8 @@ class ExtractionPipeline:
         img_meta = ImageMetadata(**metadata_dict)
 
         image_vlm_metadata = None
-        if self.vlm_client is not None:
-            vlm_data_dict = await self.vlm_client.describe_image(image_path)
+        if self.client is not None:
+            vlm_data_dict = await self.client.describe_image(image_path)
             image_vlm_metadata = ImageVLMMetadata(**vlm_data_dict)
 
         result = ExtractionResult(image_metadata=img_meta, image_vlm_metadata=image_vlm_metadata)
@@ -209,9 +206,9 @@ class ExtractionPipeline:
     def extract_magazine_semantic_fields(self, text: str, lang: str = "te") -> dict[str, Any]:
         lang_label = LANGUAGE_LABELS.get(lang, DEFAULT_LANGUAGE_LABEL)
         prompt = MAGAZINE_EXTRACTION_PROMPT.format(lang_label=lang_label, text=text[:MAGAZINE_EXTRACTION_MAX_TEXT_LENGTH])
-        if self._text_backend is None:
+        if self.client is None:
             raise ModelNotAvailableError()
-        result = self._text_backend.generate_and_extract(prompt, temperature=0.1, max_tokens=512)
+        result = self.client.generate_and_extract(prompt, temperature=0.1, max_tokens=512)
         if result is not None:
             logger.info(f"Raw LLM magazine output: {result}")
             return result
@@ -219,9 +216,9 @@ class ExtractionPipeline:
 
     def extract_semantic_fields(self, text: str) -> dict[str, Any]:
         prompt = BOOK_EXTRACTION_PROMPT.format(text=text[:BOOK_EXTRACTION_MAX_TEXT_LENGTH])
-        if self._text_backend is None:
+        if self.client is None:
             raise ModelNotAvailableError()
-        result = self._text_backend.generate_and_extract(prompt, max_tokens=256)
+        result = self.client.generate_and_extract(prompt, max_tokens=256)
         if result is not None:
             return result
         raise ParsingError("Book extraction prompt did not produce valid JSON")
