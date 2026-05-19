@@ -1,6 +1,7 @@
 import pytest
 
-from bookextractor.content_detector import MAGAZINE_PATTERNS, detect_content_type
+from bookextractor.config import settings
+from bookextractor.content_detector import detect_content_type
 
 
 def test_detect_magazine_telugu_monthly():
@@ -56,5 +57,5 @@ def test_detect_book_random_text():
 
 
 def test_magazine_patterns_is_list():
-    assert isinstance(MAGAZINE_PATTERNS, list)
-    assert len(MAGAZINE_PATTERNS) > 0
+    assert isinstance(settings.MAGAZINE_PATTERNS, list)
+    assert len(settings.MAGAZINE_PATTERNS) > 0

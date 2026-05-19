@@ -1,10 +1,9 @@
+from bookextractor.config import settings
 from bookextractor.prompts import (
-    BOOK_EXTRACTION_MAX_TEXT_LENGTH,
     BOOK_EXTRACTION_PROMPT,
     DEFAULT_LANGUAGE_LABEL,
     IMAGE_ANALYSIS_PROMPT,
     LANGUAGE_LABELS,
-    MAGAZINE_EXTRACTION_MAX_TEXT_LENGTH,
     MAGAZINE_EXTRACTION_PROMPT,
 )
 
@@ -34,8 +33,8 @@ def test_image_prompt_contains_expected_keys():
 
 
 def test_max_text_lengths_are_positive():
-    assert BOOK_EXTRACTION_MAX_TEXT_LENGTH > 0
-    assert MAGAZINE_EXTRACTION_MAX_TEXT_LENGTH > 0
+    assert settings.BOOK_EXTRACTION_MAX_LENGTH > 0
+    assert settings.MAGAZINE_EXTRACTION_MAX_LENGTH > 0
 
 
 def test_language_labels_has_expected_keys():

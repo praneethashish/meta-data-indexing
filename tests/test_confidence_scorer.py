@@ -1,8 +1,5 @@
-import pytest
-
+from bookextractor.config import settings
 from bookextractor.confidence_scorer import (
-    BOOK_CONFIDENCE_FIELDS,
-    MAGAZINE_CONFIDENCE_THRESHOLDS,
     calculate_book_confidence,
     calculate_magazine_confidence,
 )
@@ -100,16 +97,16 @@ def test_magazine_confidence_partial_data():
 
 
 def test_book_confidence_fields_constant():
-    assert "title" in BOOK_CONFIDENCE_FIELDS
-    assert "author" in BOOK_CONFIDENCE_FIELDS
-    assert "publisher" in BOOK_CONFIDENCE_FIELDS
-    assert "published_date" in BOOK_CONFIDENCE_FIELDS
+    assert "title" in settings.BOOK_CONFIDENCE_FIELDS
+    assert "author" in settings.BOOK_CONFIDENCE_FIELDS
+    assert "publisher" in settings.BOOK_CONFIDENCE_FIELDS
+    assert "published_date" in settings.BOOK_CONFIDENCE_FIELDS
 
 
-def test_magazine_confidence_thresholds_constant():
-    assert "magazine_name" in MAGAZINE_CONFIDENCE_THRESHOLDS
-    assert "editor" in MAGAZINE_CONFIDENCE_THRESHOLDS
-    assert "publisher" in MAGAZINE_CONFIDENCE_THRESHOLDS
-    assert "issue_date" in MAGAZINE_CONFIDENCE_THRESHOLDS
-    assert "issue_number" in MAGAZINE_CONFIDENCE_THRESHOLDS
-    assert "price" in MAGAZINE_CONFIDENCE_THRESHOLDS
+def test_magazine_confidence_thresholds():
+    assert "magazine_name" in settings.MAGAZINE_CONFIDENCE_THRESHOLDS
+    assert "editor" in settings.MAGAZINE_CONFIDENCE_THRESHOLDS
+    assert "publisher" in settings.MAGAZINE_CONFIDENCE_THRESHOLDS
+    assert "issue_date" in settings.MAGAZINE_CONFIDENCE_THRESHOLDS
+    assert "issue_number" in settings.MAGAZINE_CONFIDENCE_THRESHOLDS
+    assert "price" in settings.MAGAZINE_CONFIDENCE_THRESHOLDS
