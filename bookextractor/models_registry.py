@@ -1,8 +1,9 @@
-import os
 from pathlib import Path
 from typing import Any
 
-_base_cache = os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+from .config import settings
+
+_base_cache = settings.HF_HOME
 HF_CACHE_DIR = Path(_base_cache) / "hub" if not _base_cache.endswith("hub") else Path(_base_cache)
 
 AVAILABLE_MODELS: list[dict[str, Any]] = [

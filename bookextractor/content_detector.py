@@ -1,16 +1,4 @@
-MAGAZINE_PATTERNS = [
-    "\u0c2e\u0c3e\u0c38\u0c2a\u0c24\u0c4d\u0c30\u0c3f\u0c15",
-    "\u0c38\u0c02\u0c1a\u0c3f\u0c15",
-    "\u0c1a\u0c02\u0c26\u0c3e",
-    "\u0c0f\u0c1c\u0c02\u0c1f\u0c4d\u0c32\u0c41",
-    "magazine",
-    "issue",
-    "vol.",
-    "no.",
-    "subscription",
-    "monthly",
-    "periodical",
-]
+from .config import settings
 
 
 def detect_content_type(text: str) -> str:
@@ -20,7 +8,7 @@ def detect_content_type(text: str) -> str:
     in the text (case-insensitive), otherwise returns "book".
     """
     text_lower = text.lower()
-    for pattern in MAGAZINE_PATTERNS:
+    for pattern in settings.MAGAZINE_PATTERNS:
         if pattern in text_lower:
             return "magazine"
     return "book"

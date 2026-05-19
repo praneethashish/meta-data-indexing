@@ -3,6 +3,8 @@ import os
 import threading
 from typing import Any
 
+from .config import settings
+
 try:
     from vllm import LLM
 except ImportError:
@@ -105,7 +107,7 @@ class ModelManager:
                 f"memory_util={config['gpu_memory_utilization']}"
             )
 
-            if "VLLM_TARGET_DEVICE" not in os.environ:
+            if settings.VLLM_TARGET_DEVICE is None and "VLLM_TARGET_DEVICE" not in os.environ:
                 os.environ["VLLM_TARGET_DEVICE"] = config["device"]
 
             self._model = LLM(

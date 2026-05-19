@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from typing import Any, cast
 
 from PIL import Image
@@ -15,14 +14,11 @@ except ImportError:
 
     SamplingParams = _SamplingParamsStub  # type: ignore
 
+from .config import settings
 from .model_manager import ModelManager
 from .prompts import IMAGE_ANALYSIS_PROMPT
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_TEMPERATURE = 0.7
-DEFAULT_MAX_TOKENS = 512
-DEFAULT_STOP = ["```"]
 
 
 def parse_json_from_text(text_out: str) -> dict[str, Any] | None:
@@ -48,7 +44,7 @@ class ModelClient:
     _instance: "ModelClient | None" = None
 
     def __init__(self, model_id: str | None = None, max_model_len: int = 4096):
-        self.model_id = model_id or os.getenv("VLLM_MODEL_ID") or os.getenv("VLLM_MODEL")
+        self.model_id = model_id or settings.VLLM_MODEL_ID or settings.VLLM_MODEL
         self.max_model_len = max_model_len
         self._model_manager = ModelManager.get_instance()
         self._model_manager.get_or_create(
@@ -70,9 +66,9 @@ class ModelClient:
     def generate(self, prompts: list[str], sampling_params: Any = None) -> list[Any]:
         if sampling_params is None:
             sampling_params = SamplingParams(
-                temperature=DEFAULT_TEMPERATURE,
-                max_tokens=DEFAULT_MAX_TOKENS,
-                stop=DEFAULT_STOP,
+                temperature=settings.DEFAULT_TEMPERATURE,
+                max_tokens=settings.DEFAULT_MAX_TOKENS,
+                stop=settings.DEFAULT_STOP,
             )
         model = self._model_manager.get_model()
         if model is None:
@@ -83,9 +79,9 @@ class ModelClient:
         self, prompt: str, temperature: float | None = None, max_tokens: int | None = None
     ) -> dict[str, Any] | None:
         params_kwargs: dict[str, Any] = {
-            "temperature": temperature if temperature is not None else DEFAULT_TEMPERATURE,
-            "max_tokens": max_tokens if max_tokens is not None else DEFAULT_MAX_TOKENS,
-            "stop": DEFAULT_STOP,
+            "temperature": temperature if temperature is not None else settings.DEFAULT_TEMPERATURE,
+            "max_tokens": max_tokens if max_tokens is not None else settings.DEFAULT_MAX_TOKENS,
+            "stop": settings.DEFAULT_STOP,
         }
         sampling_params = SamplingParams(**params_kwargs)
         try:
@@ -105,7 +101,7 @@ class ModelClient:
         if model is None:
             raise RuntimeError("vLLM engine not initialized")
 
-        sampling_params = SamplingParams(temperature=0.2, max_tokens=512, stop=["```"])
+        sampling_params = SamplingParams(temperature=settings.VISION_TEMPERATURE, max_tokens=settings.VISION_MAX_TOKENS, stop=settings.DEFAULT_STOP)
         inputs = {
             "prompt": f"<|image_1|>\n{prompt_text}",
             "multi_modal_data": {"image": image},
@@ -120,7 +116,7 @@ class ModelClient:
 
         logger.warning("Failed to parse JSON from describe_image output.")
         return {
-            "description": text_out[:200] if text_out else None,
+            "description": text_out[:settings.DESCRIPTION_FALLBACK_LENGTH] if text_out else None,
             "text_content": None,
             "language": None,
             "scene_classification": "other",

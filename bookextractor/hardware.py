@@ -4,6 +4,8 @@ from typing import Any
 
 import psutil
 
+from .config import settings
+
 try:
     import pynvml
 except ImportError:
@@ -198,12 +200,14 @@ def get_vllm_config() -> dict[str, Any]:
         util = 0.75
 
     # Overrides
-    device = os.getenv("VLLM_DEVICE", device)
-    dtype = os.getenv("VLLM_DTYPE", dtype)
-    util = float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", util))
+    device = settings.VLLM_DEVICE or os.getenv("VLLM_DEVICE", device)
+    dtype = settings.VLLM_DTYPE or os.getenv("VLLM_DTYPE", dtype)
+    util = settings.VLLM_GPU_MEMORY_UTILIZATION or float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", util))
 
     env_tp = os.getenv("VLLM_TENSOR_PARALLEL_SIZE")
-    if env_tp:
+    if settings.VLLM_TENSOR_PARALLEL_SIZE:
+        tp = settings.VLLM_TENSOR_PARALLEL_SIZE
+    elif env_tp:
         tp = hw["count"] if env_tp.lower() == "auto" and device != "cpu" else int(env_tp)
 
     return {

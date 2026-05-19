@@ -4,9 +4,9 @@ import logging
 import os
 import re
 from contextlib import suppress
-from pathlib import Path
 from typing import Any
 
+from .config import settings
 from .content_detector import detect_content_type
 from .confidence_scorer import calculate_book_confidence, calculate_magazine_confidence
 from .exceptions import ModelNotAvailableError, ParsingError
@@ -22,11 +22,9 @@ from .models import (
     MagazineMetadata,
 )
 from .prompts import (
-    BOOK_EXTRACTION_MAX_TEXT_LENGTH,
     BOOK_EXTRACTION_PROMPT,
     DEFAULT_LANGUAGE_LABEL,
     LANGUAGE_LABELS,
-    MAGAZINE_EXTRACTION_MAX_TEXT_LENGTH,
     MAGAZINE_EXTRACTION_PROMPT,
 )
 from .validation import extract_isbn_candidates
@@ -34,8 +32,6 @@ from .vparse_client import parse_pdf_via_vparse
 
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MODELS_DIR = Path(os.getenv("BOOKEXTRACTOR_MODELS_DIR", PROJECT_ROOT / "models"))
 
 
 class ExtractionPipeline:
@@ -168,7 +164,7 @@ class ExtractionPipeline:
         )
 
         result = ExtractionResult(book_metadata=book_meta)
-        debug_info = {"isbn_candidates": isbns, "llm_raw_output": llm_result, "text_snippet": text[:500]}
+        debug_info = {"isbn_candidates": isbns, "llm_raw_output": llm_result, "text_snippet": text[:settings.TEXT_SNIPPET_LENGTH]}
 
         if benchmark:
             return BenchmarkResult(result=result, debug=debug_info).model_dump()
@@ -197,7 +193,7 @@ class ExtractionPipeline:
         )
 
         result = ExtractionResult(magazine_metadata=magazine_meta)
-        debug_info = {"llm_raw_output": llm_result, "text_snippet": text[:500]}
+        debug_info = {"llm_raw_output": llm_result, "text_snippet": text[:settings.TEXT_SNIPPET_LENGTH]}
 
         if benchmark:
             return BenchmarkResult(result=result, debug=debug_info).model_dump()
@@ -205,7 +201,7 @@ class ExtractionPipeline:
 
     def extract_magazine_semantic_fields(self, text: str, lang: str = "te") -> dict[str, Any]:
         lang_label = LANGUAGE_LABELS.get(lang, DEFAULT_LANGUAGE_LABEL)
-        prompt = MAGAZINE_EXTRACTION_PROMPT.format(lang_label=lang_label, text=text[:MAGAZINE_EXTRACTION_MAX_TEXT_LENGTH])
+        prompt = MAGAZINE_EXTRACTION_PROMPT.format(lang_label=lang_label, text=text[:settings.MAGAZINE_EXTRACTION_MAX_LENGTH])
         if self.client is None:
             raise ModelNotAvailableError()
         result = self.client.generate_and_extract(prompt, temperature=0.1, max_tokens=512)
@@ -215,7 +211,7 @@ class ExtractionPipeline:
         raise ParsingError("Magazine extraction prompt did not produce valid JSON")
 
     def extract_semantic_fields(self, text: str) -> dict[str, Any]:
-        prompt = BOOK_EXTRACTION_PROMPT.format(text=text[:BOOK_EXTRACTION_MAX_TEXT_LENGTH])
+        prompt = BOOK_EXTRACTION_PROMPT.format(text=text[:settings.BOOK_EXTRACTION_MAX_LENGTH])
         if self.client is None:
             raise ModelNotAvailableError()
         result = self.client.generate_and_extract(prompt, max_tokens=256)
