@@ -1,5 +1,3 @@
-import pytest
-
 from bookextractor.config import settings
 from bookextractor.content_detector import detect_content_type
 

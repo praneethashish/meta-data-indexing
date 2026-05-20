@@ -101,7 +101,9 @@ class ModelClient:
         if model is None:
             raise RuntimeError("vLLM engine not initialized")
 
-        sampling_params = SamplingParams(temperature=settings.VISION_TEMPERATURE, max_tokens=settings.VISION_MAX_TOKENS, stop=settings.DEFAULT_STOP)
+        sampling_params = SamplingParams(
+            temperature=settings.VISION_TEMPERATURE, max_tokens=settings.VISION_MAX_TOKENS, stop=settings.DEFAULT_STOP
+        )
         inputs = {
             "prompt": f"<|image_1|>\n{prompt_text}",
             "multi_modal_data": {"image": image},
@@ -116,7 +118,7 @@ class ModelClient:
 
         logger.warning("Failed to parse JSON from describe_image output.")
         return {
-            "description": text_out[:settings.DESCRIPTION_FALLBACK_LENGTH] if text_out else None,
+            "description": text_out[: settings.DESCRIPTION_FALLBACK_LENGTH] if text_out else None,
             "text_content": None,
             "language": None,
             "scene_classification": "other",

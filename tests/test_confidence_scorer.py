@@ -1,8 +1,8 @@
-from bookextractor.config import settings
 from bookextractor.confidence_scorer import (
     calculate_book_confidence,
     calculate_magazine_confidence,
 )
+from bookextractor.config import settings
 from bookextractor.models import ConfidenceScores, MagazineConfidenceScores
 
 

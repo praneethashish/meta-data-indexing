@@ -17,7 +17,9 @@ async def parse_pdf_via_vparse(file_path: str, lang: str = "en") -> dict[str, An
                 "lang_list": lang,
             }
             try:
-                response = await client.post(settings.VPARSE_API_URL, files=files, data=data, timeout=settings.VPARSE_TIMEOUT)
+                response = await client.post(
+                    settings.VPARSE_API_URL, files=files, data=data, timeout=settings.VPARSE_TIMEOUT
+                )
                 response.raise_for_status()
                 return cast(dict[str, Any], response.json())
             except Exception as e:

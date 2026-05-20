@@ -9,9 +9,7 @@ import pytest
 @pytest.mark.asyncio
 async def test_process_json_with_transcription(pipeline):
     # Mock LLM generation through text backend
-    pipeline.client.generate_and_extract = MagicMock(
-        return_value={"title": "Chandamama", "author": "Chakrapani"}
-    )
+    pipeline.client.generate_and_extract = MagicMock(return_value={"title": "Chandamama", "author": "Chakrapani"})
 
     # Mock ISBN lookup
     with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_isbn:
@@ -53,9 +51,7 @@ async def test_process_json_with_transcription(pipeline):
 @pytest.mark.asyncio
 async def test_process_json_fallback_if_no_transcription(pipeline):
     # Mock LLM generation through text backend
-    pipeline.client.generate_and_extract = MagicMock(
-        return_value={"title": "Raw JSON Title"}
-    )
+    pipeline.client.generate_and_extract = MagicMock(return_value={"title": "Raw JSON Title"})
 
     with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_isbn:
         mock_isbn.return_value = {}
@@ -91,7 +87,7 @@ async def test_truncation_limit_increased(pipeline):
     # Mock generate_and_extract to return a valid result and capture the prompt
     captured_prompt = {}
 
-    def mock_generate_and_extract(prompt, temperature=None, max_tokens=None):
+    def mock_generate_and_extract(prompt, temperature=None, max_tokens=None):  # noqa: ARG001
         captured_prompt["value"] = prompt
         return {"title": "Secret"}
 

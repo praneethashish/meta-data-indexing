@@ -5,6 +5,16 @@ from pathlib import Path
 from typing import ClassVar
 
 
+def _optional_float(env_var: str) -> float | None:
+    val = os.getenv(env_var)
+    return float(val) if val is not None else None
+
+
+def _optional_int(env_var: str) -> int | None:
+    val = os.getenv(env_var)
+    return int(val) if val is not None else None
+
+
 def setup_logging() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -34,13 +44,9 @@ class Settings:
     VLLM_MODEL: str | None = os.getenv("VLLM_MODEL")
     VLLM_DEVICE: str | None = os.getenv("VLLM_DEVICE")
     VLLM_DTYPE: str | None = os.getenv("VLLM_DTYPE")
-    VLLM_GPU_MEMORY_UTILIZATION: float | None = (
-        float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION")) if os.getenv("VLLM_GPU_MEMORY_UTILIZATION") else None
-    )
+    VLLM_GPU_MEMORY_UTILIZATION: float | None = _optional_float("VLLM_GPU_MEMORY_UTILIZATION")
     VLLM_TARGET_DEVICE: str | None = os.getenv("VLLM_TARGET_DEVICE")
-    VLLM_TENSOR_PARALLEL_SIZE: int | None = (
-        int(os.getenv("VLLM_TENSOR_PARALLEL_SIZE")) if os.getenv("VLLM_TENSOR_PARALLEL_SIZE") else None
-    )
+    VLLM_TENSOR_PARALLEL_SIZE: int | None = _optional_int("VLLM_TENSOR_PARALLEL_SIZE")
     MAX_MODEL_LEN: int = int(os.getenv("MAX_MODEL_LEN", "4096"))
 
     # ── Text Extraction Defaults ───────────────────────────
@@ -78,7 +84,16 @@ class Settings:
 
     # ── File type rules (centralized, not env-overridable) ─
     ALLOWED_EXTENSIONS: ClassVar[tuple[str, ...]] = (
-        ".pdf", ".md", ".json", ".txt", ".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif"
+        ".pdf",
+        ".md",
+        ".json",
+        ".txt",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".tiff",
+        ".tif",
     )
     IMAGE_EXTENSIONS: ClassVar[tuple[str, ...]] = (".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")
 

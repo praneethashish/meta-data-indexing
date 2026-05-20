@@ -2,8 +2,6 @@ import os
 import threading
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from bookextractor.exceptions import ModelNotAvailableError, ParsingError
 
 
@@ -107,7 +105,6 @@ def test_model_manager_thread_safety():
 
 
 def test_vllm_target_device_env_guard(monkeypatch):
-    from unittest.mock import patch
 
     from bookextractor.model_manager import ModelManager
 

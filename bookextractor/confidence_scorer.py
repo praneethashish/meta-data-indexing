@@ -2,9 +2,7 @@ from .config import settings
 from .models import ConfidenceScores, MagazineConfidenceScores
 
 
-def calculate_book_confidence(
-    final: dict, candidates: dict[str, list], has_isbn: bool
-) -> ConfidenceScores:
+def calculate_book_confidence(final: dict, candidates: dict[str, list], has_isbn: bool) -> ConfidenceScores:
     scores = {}
     for field in settings.BOOK_CONFIDENCE_FIELDS:
         if not final.get(field):

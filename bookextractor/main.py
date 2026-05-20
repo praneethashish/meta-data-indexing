@@ -223,7 +223,9 @@ def api_command(
 @cli_app.command("worker")
 def worker_command(
     queue: str = typer.Option(settings.CELERY_DEFAULT_QUEUE, "--queue", "-q", help="Celery queue to listen to"),
-    concurrency: int = typer.Option(settings.DEFAULT_WORKER_CONCURRENCY, "--concurrency", "-c", help="Number of concurrent worker processes"),  # noqa: E501
+    concurrency: int = typer.Option(
+        settings.DEFAULT_WORKER_CONCURRENCY, "--concurrency", "-c", help="Number of concurrent worker processes"
+    ),  # noqa: E501
 ):
     """Start a Celery worker for background processing."""
     logger.info("Starting Celery worker for queue: %s (concurrency: %s)", queue, concurrency)

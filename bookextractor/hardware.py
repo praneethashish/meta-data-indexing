@@ -200,8 +200,8 @@ def get_vllm_config() -> dict[str, Any]:
         util = 0.75
 
     # Overrides
-    device = settings.VLLM_DEVICE or os.getenv("VLLM_DEVICE", device)
-    dtype = settings.VLLM_DTYPE or os.getenv("VLLM_DTYPE", dtype)
+    device = settings.VLLM_DEVICE or os.getenv("VLLM_DEVICE") or device
+    dtype = settings.VLLM_DTYPE or os.getenv("VLLM_DTYPE") or dtype
     util = settings.VLLM_GPU_MEMORY_UTILIZATION or float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", util))
 
     env_tp = os.getenv("VLLM_TENSOR_PARALLEL_SIZE")
