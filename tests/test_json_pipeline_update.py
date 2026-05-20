@@ -5,25 +5,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from bookextractor.pipeline import ExtractionPipeline
-
-
-@pytest.fixture
-def pipeline():
-    # Mock VLMClient to avoid loading actual model during tests
-    with patch("bookextractor.vlm_client.VLMClient.get_instance"):
-        p = ExtractionPipeline()
-        p.vlm_client = MagicMock()
-        p.llm = MagicMock()
-        return p
-
 
 @pytest.mark.asyncio
 async def test_process_json_with_transcription(pipeline):
-    # Mock LLM generation
-    mock_output = MagicMock()
-    mock_output.outputs = [MagicMock(text='{"title": "Chandamama", "author": "Chakrapani"}')]
-    pipeline.vlm_client.generate = MagicMock(return_value=[mock_output])
+    # Mock LLM generation through text backend
+    pipeline.client.generate_and_extract = MagicMock(return_value={"title": "Chandamama", "author": "Chakrapani"})
 
     # Mock ISBN lookup
     with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_isbn:
@@ -64,10 +50,8 @@ async def test_process_json_with_transcription(pipeline):
 
 @pytest.mark.asyncio
 async def test_process_json_fallback_if_no_transcription(pipeline):
-    # Mock LLM generation
-    mock_output = MagicMock()
-    mock_output.outputs = [MagicMock(text='{"title": "Raw JSON Title"}')]
-    pipeline.vlm_client.generate = MagicMock(return_value=[mock_output])
+    # Mock LLM generation through text backend
+    pipeline.client.generate_and_extract = MagicMock(return_value={"title": "Raw JSON Title"})
 
     with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_isbn:
         mock_isbn.return_value = {}
@@ -100,19 +84,17 @@ async def test_truncation_limit_increased(pipeline):
     # Create a very long string (over 3000 chars)
     long_text = "Book title is Secret. " + ("A" * 14000)
 
-    mock_output = MagicMock()
-    mock_output.outputs = [MagicMock(text='{"title": "Secret"}')]
-    pipeline.vlm_client.generate = MagicMock(return_value=[mock_output])
+    # Mock generate_and_extract to return a valid result and capture the prompt
+    captured_prompt = {}
 
-    # We test extract_semantic_fields directly to verify prompt construction
-    with patch.object(pipeline.vlm_client, "generate", return_value=[mock_output]) as mock_gen:
-        pipeline.extract_semantic_fields(long_text)
+    def mock_generate_and_extract(prompt, temperature=None, max_tokens=None):  # noqa: ARG001
+        captured_prompt["value"] = prompt
+        return {"title": "Secret"}
 
-        mock_gen.assert_called_once()
-        args, _ = mock_gen.call_args
-        prompt = args[0][0]
+    pipeline.client.generate_and_extract = MagicMock(side_effect=mock_generate_and_extract)
 
-        # Check that the prompt contains more than 3000 characters of the text
-        # (Actually we check if it contains the later part of the text)
-        assert "A" * 10000 in prompt
-        assert len(prompt) > 10000
+    pipeline.extract_semantic_fields(long_text)
+
+    # Check that the prompt contains more than 3000 characters of the text
+    assert "A" * 10000 in captured_prompt["value"]
+    assert len(captured_prompt["value"]) > 10000

@@ -1,4 +1,10 @@
+import logging
+
 import httpx
+
+from .config import settings
+
+logger = logging.getLogger(__name__)
 
 
 async def lookup_isbn(isbn: str) -> dict[str, str | None]:
@@ -8,7 +14,7 @@ async def lookup_isbn(isbn: str) -> dict[str, str | None]:
     url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data"
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(url, timeout=10.0)
+            response = await client.get(url, timeout=settings.OPENLIBRARY_TIMEOUT)
             if response.status_code == 200:
                 data = response.json()
                 key = f"ISBN:{isbn}"
@@ -23,7 +29,7 @@ async def lookup_isbn(isbn: str) -> dict[str, str | None]:
                         "published_date": book_info.get("publish_date"),
                     }
 
-        except Exception:  # nosec
-            pass
+        except Exception:
+            logger.warning("ISBN lookup failed for %s", isbn)
 
     return {}

@@ -57,7 +57,8 @@ def test_health_endpoint(test_client):
     response = test_client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json()["status"] == "ok"
+    assert "model_ready" in response.json()
 
 
 def test_extract_jpg_routes_correctly(test_client, override_vision_pipeline):
@@ -249,7 +250,7 @@ def test_get_vision_pipeline_returns_pipeline():
     with patch("bookextractor.main.ExtractionPipeline") as mock_class:
         mock_class.return_value = MagicMock()
         pipeline = get_vision_pipeline()
-        mock_class.assert_called_once_with(load_llm=False)
+        mock_class.assert_called_once_with(load_vlm=False)
         assert pipeline is not None
 
     get_vision_pipeline.cache_clear()

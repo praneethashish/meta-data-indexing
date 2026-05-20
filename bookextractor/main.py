@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 import pathlib
 import uuid
@@ -10,8 +11,11 @@ import typer
 import uvicorn
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 
+from .config import settings
 from .pipeline import ExtractionPipeline
 from .tasks import celery_app, extract_image_task, extract_pdf_task, extract_text_task
+
+logger = logging.getLogger(__name__)
 
 
 class OCRLanguage(str, Enum):
@@ -24,20 +28,19 @@ class OCRLanguage(str, Enum):
 
 app = FastAPI()
 cli_app = typer.Typer()
-ALLOWED_EXTENSIONS = (".pdf", ".md", ".json", ".txt", ".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")
-IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif")
-UPLOAD_DIR = os.getenv("BOOKEXTRACTOR_UPLOAD_DIR", "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @lru_cache
 def get_vision_pipeline():
-    return ExtractionPipeline(load_llm=False)
+    return ExtractionPipeline(load_vlm=False)
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    from .model_manager import ModelManager
+
+    manager = ModelManager.get_instance()
+    return {"status": "ok", "model_ready": manager.is_loaded()}
 
 
 @app.post("/extract/async")
@@ -53,14 +56,15 @@ async def extract_async(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
     filename = file.filename.lower()
-    if not filename.endswith(ALLOWED_EXTENSIONS):
-        raise HTTPException(status_code=400, detail=f"Unsupported file type. Allowed: {ALLOWED_EXTENSIONS}")
+    if not filename.endswith(settings.ALLOWED_EXTENSIONS):
+        raise HTTPException(status_code=400, detail=f"Unsupported file type. Allowed: {settings.ALLOWED_EXTENSIONS}")
 
     # Save to persistent upload dir for worker access
     file_id = str(uuid.uuid4())
     safe_extension = pathlib.Path(file.filename).suffix.lower()
-    save_path = os.path.join(UPLOAD_DIR, f"{file_id}{safe_extension}")
+    save_path = os.path.join(settings.UPLOAD_DIR, f"{file_id}{safe_extension}")
 
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     with open(save_path, "wb") as buffer:
         buffer.write(await file.read())
 
@@ -103,9 +107,11 @@ async def get_job_status(job_id: str):
     return response
 
 
-def _run_api(host: str = "0.0.0.0", port: int = 8000) -> None:  # nosec B104
-    print("Starting FastAPI server...")
-    uvicorn.run(app, host=host, port=port)  # nosec
+def _run_api(host: str = "", port: int = 0) -> None:
+    host = host or settings.API_HOST
+    port = port or settings.API_PORT
+    logger.info("Starting FastAPI server on %s:%s", host, port)
+    uvicorn.run(app, host=host, port=port)
 
 
 async def _extract_file(
@@ -117,8 +123,8 @@ async def _extract_file(
     use_vlm: bool = False,
 ) -> None:
     filename = input_file.lower()
-    is_image = filename.endswith(IMAGE_EXTENSIONS)
-    p = ExtractionPipeline(max_model_len=max_model_len, load_llm=(not is_image) or use_vlm)
+    is_image = filename.endswith(settings.IMAGE_EXTENSIONS)
+    p = ExtractionPipeline(max_model_len=max_model_len, load_vlm=(not is_image) or use_vlm)
 
     if filename.endswith(".pdf"):
         result = await p.process_pdf(input_file, benchmark=benchmark, lang=lang.value)
@@ -133,7 +139,7 @@ async def _extract_file(
     os.makedirs(os.path.dirname(os.path.abspath(output_json)), exist_ok=True)
     with open(output_json, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
-    print(f"Results saved to {output_json}")
+    logger.info("Results saved to %s", output_json)
 
 
 @app.post("/extract")
@@ -144,7 +150,7 @@ async def extract(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
     filename = file.filename.lower()
-    if not filename.endswith(IMAGE_EXTENSIONS):
+    if not filename.endswith(settings.IMAGE_EXTENSIONS):
         raise HTTPException(
             status_code=400,
             detail="Synchronous extraction is only supported for images. Use /extract/async for PDFs/Text.",
@@ -158,11 +164,8 @@ async def extract(
         with open(temp_path, "wb") as buffer:
             buffer.write(await file.read())
 
-        try:
-            result = await vision_pipeline.process_image(temp_path)
-            return result
-        finally:
-            pass
+        result = await vision_pipeline.process_image(temp_path)
+        return result
 
 
 @cli_app.callback()
@@ -198,7 +201,7 @@ def extract_command(
     ),
     use_vlm: bool = typer.Option(False, "--vlm", help="Enable VLM analysis for images"),  # noqa: B008
     max_model_len: int = typer.Option(  # noqa: B008
-        4096,
+        settings.MAX_MODEL_LEN,
         "--max-model-len",
         help="Maximum context length (reduce to save VRAM)",
     ),
@@ -212,19 +215,21 @@ def extract_command(
 
 @cli_app.command("api")
 def api_command(
-    host: str = typer.Option("0.0.0.0", "--host", help="Host interface to bind the API server"),  # nosec B104
-    port: int = typer.Option(8000, "--port", help="Port to bind the API server"),  # noqa: B008
+    host: str = typer.Option(settings.API_HOST, "--host", help="Host interface to bind the API server"),  # nosec B104
+    port: int = typer.Option(settings.API_PORT, "--port", help="Port to bind the API server"),  # noqa: B008
 ) -> None:
     _run_api(host=host, port=port)
 
 
 @cli_app.command("worker")
 def worker_command(
-    queue: str = typer.Option("default_queue", "--queue", "-q", help="Celery queue to listen to"),
-    concurrency: int = typer.Option(4, "--concurrency", "-c", help="Number of concurrent worker processes"),
+    queue: str = typer.Option(settings.CELERY_DEFAULT_QUEUE, "--queue", "-q", help="Celery queue to listen to"),
+    concurrency: int = typer.Option(
+        settings.DEFAULT_WORKER_CONCURRENCY, "--concurrency", "-c", help="Number of concurrent worker processes"
+    ),  # noqa: E501
 ):
     """Start a Celery worker for background processing."""
-    print(f"Starting Celery worker for queue: {queue} (concurrency: {concurrency})")
+    logger.info("Starting Celery worker for queue: %s (concurrency: %s)", queue, concurrency)
     import subprocess  # nosec
 
     cmd = [

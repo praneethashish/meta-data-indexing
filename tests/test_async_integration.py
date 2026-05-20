@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -105,7 +105,7 @@ def test_get_job_status_failure(client):
 @patch("os.remove")
 def test_tasks_pdf(mock_remove, mock_exists, mock_get_p):
     mock_pipeline = MagicMock()
-    mock_pipeline.process_pdf = AsyncMock(return_value={"ok": True})
+    mock_pipeline.process_pdf_sync = MagicMock(return_value={"ok": True})
     mock_get_p.return_value = mock_pipeline
     mock_exists.return_value = True
 
@@ -119,7 +119,7 @@ def test_tasks_pdf(mock_remove, mock_exists, mock_get_p):
 @patch("os.remove")
 def test_tasks_image(mock_remove, mock_exists, mock_get_p):
     mock_pipeline = MagicMock()
-    mock_pipeline.process_image = AsyncMock(return_value={"img": True})
+    mock_pipeline.process_image_sync = MagicMock(return_value={"img": True})
     mock_get_p.return_value = mock_pipeline
     mock_exists.return_value = True
 
@@ -133,7 +133,7 @@ def test_tasks_image(mock_remove, mock_exists, mock_get_p):
 @patch("os.remove")
 def test_tasks_text(mock_remove, mock_exists, mock_get_p):
     mock_pipeline = MagicMock()
-    mock_pipeline.process_text_file = AsyncMock(return_value={"txt": True})
+    mock_pipeline.process_text_file_sync = MagicMock(return_value={"txt": True})
     mock_get_p.return_value = mock_pipeline
     mock_exists.return_value = True
 
@@ -160,20 +160,20 @@ def test_get_pipeline_lazy_loading():
         # Clear global state for test
         import bookextractor.tasks as tasks
 
-        tasks._pipeline_with_llm = None
-        tasks._pipeline_no_llm = None
+        tasks._pipeline_with_vlm = None
+        tasks._pipeline_no_vlm = None
 
         # Test with LLM
-        p1 = get_pipeline(load_llm=True)
-        mock_ep.assert_called_with(load_llm=True)
-        p2 = get_pipeline(load_llm=True)
+        p1 = get_pipeline(load_vlm=True)
+        mock_ep.assert_called_with(load_vlm=True)
+        p2 = get_pipeline(load_vlm=True)
         assert p1 == p2
         assert mock_ep.call_count == 1
 
         # Test without LLM
-        p3 = get_pipeline(load_llm=False)
-        mock_ep.assert_called_with(load_llm=False)
-        p4 = get_pipeline(load_llm=False)
+        p3 = get_pipeline(load_vlm=False)
+        mock_ep.assert_called_with(load_vlm=False)
+        p4 = get_pipeline(load_vlm=False)
         assert p3 == p4
         assert mock_ep.call_count == 2
 

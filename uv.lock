@@ -480,6 +480,13 @@ lint = [
     { name = "types-requests" },
     { name = "vulture" },
 ]
+test = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-httpx" },
+    { name = "pytest-mock" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -514,6 +521,13 @@ lint = [
     { name = "types-psutil" },
     { name = "types-requests" },
     { name = "vulture", specifier = ">=2.0" },
+]
+test = [
+    { name = "pytest", specifier = ">=7.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.21.0" },
+    { name = "pytest-cov", specifier = ">=4.0.0" },
+    { name = "pytest-httpx", specifier = ">=0.36.2" },
+    { name = "pytest-mock", specifier = ">=1.15.0" },
 ]
 
 [[package]]

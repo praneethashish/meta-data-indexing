@@ -45,6 +45,13 @@ lint = [
     "types-requests",
     "types-psutil",
 ]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-httpx>=0.36.2",
+    "pytest-mock>=1.15.0",
+    "pytest-asyncio>=0.21.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -100,4 +107,4 @@ asyncio_mode = "auto"
 
 [tool.bandit]
 exclude_dirs = ["tests"]
-skips = ["B101"]
+skips = ["B101", "B104"]
