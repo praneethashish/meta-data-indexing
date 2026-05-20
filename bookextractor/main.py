@@ -64,6 +64,7 @@ async def extract_async(
     safe_extension = pathlib.Path(file.filename).suffix.lower()
     save_path = os.path.join(settings.UPLOAD_DIR, f"{file_id}{safe_extension}")
 
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     with open(save_path, "wb") as buffer:
         buffer.write(await file.read())
 
