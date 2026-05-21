@@ -8,17 +8,27 @@ from bookextractor.pipeline import ExtractionPipeline
 
 @pytest.fixture
 def pipeline():
-    mock_client = MagicMock()
-    mock_client.generate_and_extract.return_value = {
+    mock_llm_client = MagicMock()
+    mock_llm_client.extract_semantic_fields.return_value = {
         "title": "Test Book",
         "author": "Test Author",
         "publisher": "Test Publisher",
         "published_date": "2023",
     }
+    mock_llm_client.extract_magazine_fields.return_value = {
+        "magazine_name": "Test Magazine",
+        "editor": "Test Editor",
+    }
 
-    with patch("bookextractor.model_client.ModelClient.get_instance", return_value=mock_client):
+    mock_vision_client = MagicMock()
+
+    with (
+        patch("bookextractor.pipeline.create_llm_client", return_value=mock_llm_client),
+        patch("bookextractor.pipeline.ModelClient.get_instance", return_value=mock_vision_client),
+    ):
         p = ExtractionPipeline()
-        p.client = mock_client
+        p.llm_client = mock_llm_client
+        p.vision_client = mock_vision_client
         return p
 
 

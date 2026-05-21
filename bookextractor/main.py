@@ -12,6 +12,7 @@ import uvicorn
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 
 from .config import settings
+from .llm_clients import has_partial_remote_llm_config
 from .pipeline import ExtractionPipeline
 from .tasks import celery_app, extract_image_task, extract_pdf_task, extract_text_task
 
@@ -43,6 +44,17 @@ def health():
     return {"status": "ok", "model_ready": manager.is_loaded()}
 
 
+def _llm_configuration_error(exc: RuntimeError) -> HTTPException:
+    return HTTPException(
+        status_code=400,
+        detail=(
+            "Invalid LLM configuration. Set BOOKEXTRACTOR_LLM_MODEL, BOOKEXTRACTOR_LLM_BASE_URL, "
+            "and BOOKEXTRACTOR_LLM_API_KEY together, or remove them to use the local vLLM fallback. "
+            f"Details: {exc}"
+        ),
+    )
+
+
 @app.post("/extract/async")
 async def extract_async(
     file: UploadFile = File(...),  # noqa: B008
@@ -53,6 +65,15 @@ async def extract_async(
     use_vlm: bool = Form(False, description="Run deep Vision analysis on images (requires GPU)"),  # noqa: B008
 ):
     """Submit an extraction job to the background queue."""
+    if has_partial_remote_llm_config():
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Incomplete remote LLM configuration. Set BOOKEXTRACTOR_LLM_MODEL, "
+                "BOOKEXTRACTOR_LLM_BASE_URL, and BOOKEXTRACTOR_LLM_API_KEY together, "
+                "or remove them to use the local vLLM fallback."
+            ),
+        )
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
     filename = file.filename.lower()
@@ -124,6 +145,16 @@ async def _extract_file(
 ) -> None:
     filename = input_file.lower()
     is_image = filename.endswith(settings.IMAGE_EXTENSIONS)
+    needs_llm = (not is_image) or use_vlm
+
+    if needs_llm and has_partial_remote_llm_config():
+        print(
+            "Error: Incomplete remote LLM configuration. Set BOOKEXTRACTOR_LLM_MODEL, "
+            "BOOKEXTRACTOR_LLM_BASE_URL, and BOOKEXTRACTOR_LLM_API_KEY together, "
+            "or remove them to use the local vLLM fallback."
+        )
+        raise typer.Exit(code=1)
+
     p = ExtractionPipeline(max_model_len=max_model_len, load_vlm=(not is_image) or use_vlm)
 
     if filename.endswith(".pdf"):

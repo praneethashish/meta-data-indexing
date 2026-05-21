@@ -12,6 +12,7 @@ from .content_detector import detect_content_type
 from .exceptions import ModelNotAvailableError, ParsingError
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
+from .llm_clients import BaseLLMClient, create_llm_client
 from .model_client import ModelClient
 from .models import (
     BenchmarkResult,
@@ -21,12 +22,6 @@ from .models import (
     ImageVLMMetadata,
     MagazineMetadata,
 )
-from .prompts import (
-    BOOK_EXTRACTION_PROMPT,
-    DEFAULT_LANGUAGE_LABEL,
-    LANGUAGE_LABELS,
-    MAGAZINE_EXTRACTION_PROMPT,
-)
 from .validation import extract_isbn_candidates
 from .vparse_client import parse_pdf_via_vparse
 
@@ -35,9 +30,16 @@ logger = logging.getLogger(__name__)
 
 class ExtractionPipeline:
     def __init__(self, model_id: str | None = None, max_model_len: int = 4096, load_vlm: bool = True):
-        self.client: ModelClient | None = None
+        self.llm_client: BaseLLMClient | None = None
+        self.vision_client: ModelClient | None = None
+        self._model_id = model_id
+        self._max_model_len = max_model_len
+
         if load_vlm:
-            self.client = ModelClient.get_instance(model_id=model_id, max_model_len=max_model_len)
+            try:
+                self.vision_client = ModelClient.get_instance(model_id=model_id, max_model_len=max_model_len)
+            except RuntimeError:
+                logger.info("No local vLLM model available; VLM image analysis will be skipped (EXIF only).")
 
     async def process_pdf(self, pdf_path: str, benchmark: bool = False, lang: str = "en") -> dict[str, Any]:
         # Call vParse OCR API with the selected language
@@ -80,8 +82,8 @@ class ExtractionPipeline:
         img_meta = ImageMetadata(**metadata_dict)
 
         image_vlm_metadata = None
-        if self.client is not None:
-            vlm_data_dict = await self.client.describe_image(image_path)
+        if self.vision_client is not None:
+            vlm_data_dict = await self.vision_client.describe_image(image_path)
             image_vlm_metadata = ImageVLMMetadata(**vlm_data_dict)
 
         result = ExtractionResult(image_metadata=img_meta, image_vlm_metadata=image_vlm_metadata)
@@ -202,25 +204,24 @@ class ExtractionPipeline:
             return BenchmarkResult(result=result, debug=debug_info).model_dump()
         return result.model_dump()
 
+    def ensure_llm_client(self) -> None:
+        if self.llm_client is None:
+            self.llm_client = create_llm_client(model_id=self._model_id)
+
     def extract_magazine_semantic_fields(self, text: str, lang: str = "te") -> dict[str, Any]:
-        lang_label = LANGUAGE_LABELS.get(lang, DEFAULT_LANGUAGE_LABEL)
-        prompt = MAGAZINE_EXTRACTION_PROMPT.format(
-            lang_label=lang_label, text=text[: settings.MAGAZINE_EXTRACTION_MAX_LENGTH]
-        )
-        if self.client is None:
-            raise ModelNotAvailableError()
-        result = self.client.generate_and_extract(prompt, temperature=0.1, max_tokens=512)
-        if result is not None:
+        self.ensure_llm_client()
+        assert self.llm_client is not None
+        result = self.llm_client.extract_magazine_fields(text, lang=lang)
+        if result:
             logger.info(f"Raw LLM magazine output: {result}")
             return result
         raise ParsingError("Magazine extraction prompt did not produce valid JSON")
 
     def extract_semantic_fields(self, text: str) -> dict[str, Any]:
-        prompt = BOOK_EXTRACTION_PROMPT.format(text=text[: settings.BOOK_EXTRACTION_MAX_LENGTH])
-        if self.client is None:
-            raise ModelNotAvailableError()
-        result = self.client.generate_and_extract(prompt, max_tokens=256)
-        if result is not None:
+        self.ensure_llm_client()
+        assert self.llm_client is not None
+        result = self.llm_client.extract_semantic_fields(text)
+        if result:
             return result
         raise ParsingError("Book extraction prompt did not produce valid JSON")
 

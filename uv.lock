@@ -228,6 +228,18 @@ wheels = [
 ]
 
 [[package]]
+name = "anyllm"
+version = "0.2.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a9/d6/d4c8c4e1bd11486b709886271e015cfd548c827c7a82d85c9845ed26903a/anyllm-0.2.4.tar.gz", hash = "sha256:a14f7af802a6f3075ad431dc56d46c4dc2fdf51c9581e723ea0316c1e6b32578", size = 41771, upload-time = "2026-04-09T07:32:27.791Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/65/1f/b5761fddd111f1454bfa1a0ac126f95f7affe311b6e1d2ec8326949f503f/anyllm-0.2.4-py3-none-any.whl", hash = "sha256:8b2b3da267f04064885867144a80dcb1123ba52e1680318d68aee7069179c25a", size = 34698, upload-time = "2026-04-09T07:32:26.474Z" },
+]
+
+[[package]]
 name = "apache-tvm-ffi"
 version = "0.1.11"
 source = { registry = "https://pypi.org/simple" }
@@ -471,6 +483,9 @@ dependencies = [
 ml = [
     { name = "vllm" },
 ]
+remote-llm = [
+    { name = "anyllm" },
+]
 
 [package.dev-dependencies]
 lint = [
@@ -490,6 +505,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyllm", marker = "extra == 'remote-llm'", specifier = ">=0.2.4" },
     { name = "celery", specifier = ">=5.3.0" },
     { name = "fastapi", specifier = ">=0.100.0" },
     { name = "httpx", specifier = ">=0.24.0" },
@@ -512,7 +528,7 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.22.0" },
     { name = "vllm", marker = "extra == 'ml'", specifier = ">=0.8.0" },
 ]
-provides-extras = ["ml"]
+provides-extras = ["ml", "remote-llm"]
 
 [package.metadata.requires-dev]
 lint = [

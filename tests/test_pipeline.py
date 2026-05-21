@@ -113,7 +113,7 @@ async def test_process_image_extracts_metadata(pipeline, sample_image_metadata, 
     image_path = tmp_path / "test.jpg"
     image_path.write_bytes(b"\xff\xd8\xff\xe0\x00\x10JFIF")
 
-    pipeline.client = None
+    pipeline.vision_client = None
 
     with patch("bookextractor.pipeline.extract_image_metadata", return_value=sample_image_metadata):
         result = await pipeline.process_image(str(image_path))
@@ -129,7 +129,7 @@ async def test_process_image_benchmark_mode(pipeline, sample_image_metadata, tmp
     image_path = tmp_path / "test.jpg"
     image_path.write_bytes(b"\xff\xd8\xff\xe0")
 
-    pipeline.client = None
+    pipeline.vision_client = None
 
     with patch("bookextractor.pipeline.extract_image_metadata", return_value=sample_image_metadata):
         result = await pipeline.process_image(str(image_path), benchmark=True)
@@ -275,7 +275,7 @@ async def test_process_pdf_benchmark_mode(pipeline, sample_vparse_response, tmp_
 async def test_extract_from_text_magazine(pipeline):
     magazine_text = "చందమామ మాసపత్రిక ఆగస్టు 1948 సంచిక 2 ఖరీదు 0-6-0"
 
-    pipeline.client.generate_and_extract.return_value = {
+    pipeline.llm_client.extract_magazine_fields.return_value = {
         "magazine_name": "చందమామ",
         "issue_date": "August 1948",
         "issue_number": "2",
@@ -296,7 +296,7 @@ async def test_extract_from_text_magazine(pipeline):
 async def test_extract_from_text_magazine_benchmark(pipeline):
     magazine_text = "ఆంధ్రజ్యోతి మాసపత్రిక"
 
-    pipeline.client.generate_and_extract.return_value = {
+    pipeline.llm_client.extract_magazine_fields.return_value = {
         "magazine_name": "ఆంధ్రజ్యోతి",
     }
 
@@ -319,7 +319,7 @@ async def test_extract_from_text_magazine_json_input(pipeline, tmp_path):
         )
     )
 
-    pipeline.client.generate_and_extract.return_value = {
+    pipeline.llm_client.extract_magazine_fields.return_value = {
         "magazine_name": "చందమామ",
         "issue_date": "August 1948",
     }

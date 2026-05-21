@@ -9,7 +9,9 @@ import pytest
 @pytest.mark.asyncio
 async def test_process_json_with_transcription(pipeline):
     # Mock LLM generation through text backend
-    pipeline.client.generate_and_extract = MagicMock(return_value={"title": "Chandamama", "author": "Chakrapani"})
+    pipeline.llm_client.extract_semantic_fields = MagicMock(
+        return_value={"title": "Chandamama", "author": "Chakrapani"}
+    )
 
     # Mock ISBN lookup
     with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_isbn:
@@ -51,7 +53,7 @@ async def test_process_json_with_transcription(pipeline):
 @pytest.mark.asyncio
 async def test_process_json_fallback_if_no_transcription(pipeline):
     # Mock LLM generation through text backend
-    pipeline.client.generate_and_extract = MagicMock(return_value={"title": "Raw JSON Title"})
+    pipeline.llm_client.extract_semantic_fields = MagicMock(return_value={"title": "Raw JSON Title"})
 
     with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_isbn:
         mock_isbn.return_value = {}
@@ -84,17 +86,17 @@ async def test_truncation_limit_increased(pipeline):
     # Create a very long string (over 3000 chars)
     long_text = "Book title is Secret. " + ("A" * 14000)
 
-    # Mock generate_and_extract to return a valid result and capture the prompt
-    captured_prompt = {}
+    # Mock extract_semantic_fields to return a valid result and capture the text
+    captured_text = {}
 
-    def mock_generate_and_extract(prompt, temperature=None, max_tokens=None):  # noqa: ARG001
-        captured_prompt["value"] = prompt
+    def mock_extract_semantic_fields(text):
+        captured_text["value"] = text
         return {"title": "Secret"}
 
-    pipeline.client.generate_and_extract = MagicMock(side_effect=mock_generate_and_extract)
+    pipeline.llm_client.extract_semantic_fields = MagicMock(side_effect=mock_extract_semantic_fields)
 
     pipeline.extract_semantic_fields(long_text)
 
-    # Check that the prompt contains more than 3000 characters of the text
-    assert "A" * 10000 in captured_prompt["value"]
-    assert len(captured_prompt["value"]) > 10000
+    # Check that the text contains more than 3000 characters
+    assert "A" * 10000 in captured_text["value"]
+    assert len(captured_text["value"]) > 10000
