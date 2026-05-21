@@ -1,13 +1,17 @@
 import importlib
 import json
+import logging
 import os
 from typing import Any, cast
 
 from . import config
+from .config import Settings
 from .prompts import BOOK_EXTRACTION_PROMPT, DEFAULT_LANGUAGE_LABEL, LANGUAGE_LABELS, MAGAZINE_EXTRACTION_PROMPT
 
+logger = logging.getLogger(__name__)
 
-def _settings():
+
+def _settings() -> Settings:
     return config.settings
 
 
@@ -115,6 +119,7 @@ class AnyLLMClient(BaseLLMClient):
                 stop=["```"],
             )
         except Exception:
+            logger.exception("Remote LLM call failed")
             return {}
 
         content = getattr(response, "content", response)

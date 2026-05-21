@@ -1,4 +1,13 @@
-from .main import app as app
-from .main import cli_app as cli_app
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+_env_path = Path(__file__).resolve().parents[1] / ".env"
+if _env_path.exists():
+    load_dotenv(_env_path)
+
+# noqa: E402 — dotenv must load before other modules read env vars
+from .main import app as app  # noqa: E402
+from .main import cli_app as cli_app  # noqa: E402
 
 __version__ = "0.1.0"

@@ -9,7 +9,7 @@ from typing import Any
 from .confidence_scorer import calculate_book_confidence, calculate_magazine_confidence
 from .config import settings
 from .content_detector import detect_content_type
-from .exceptions import ModelNotAvailableError, ParsingError
+from .exceptions import ParsingError
 from .external_api import lookup_isbn
 from .image_utils import extract_image_metadata
 from .llm_clients import BaseLLMClient, create_llm_client
@@ -102,12 +102,30 @@ class ExtractionPipeline:
         # Check if it's a structured JSON with transcription (already OCR'd content)
         try:
             data = json.loads(content)
-            if isinstance(data, dict) and "transcription" in data:
-                transcription = data.get("transcription")
-                if transcription is None:
-                    transcription = json.dumps(data)
+            if isinstance(data, dict):
+                # Prefer transcription key if present
+                if "transcription" in data:
+                    transcription = data.get("transcription")
+                    if transcription is None:
+                        transcription = json.dumps(data)
+                    detected_lang = data.get("language", lang)
+                    return await self.extract_from_text(str(transcription), benchmark=benchmark, lang=detected_lang)
+
+                # Fall back to segments[] or content_list[] — join text fields in reading order
+                for key in ("segments", "content_list"):
+                    items = data.get(key, [])
+                    if isinstance(items, list):
+                        items = sorted(items, key=lambda x: x.get("reading_order", 0))
+                        full_text = "\n".join(
+                            item.get("text", "") for item in items if isinstance(item, dict) and item.get("text")
+                        )
+                        if full_text:
+                            detected_lang = data.get("language", lang)
+                            return await self.extract_from_text(full_text, benchmark=benchmark, lang=detected_lang)
+
+                # Last resort: stringified JSON
                 detected_lang = data.get("language", lang)
-                return await self.extract_from_text(str(transcription), benchmark=benchmark, lang=detected_lang)
+                return await self.extract_from_text(json.dumps(data), benchmark=benchmark, lang=detected_lang)
         except (json.JSONDecodeError, TypeError):
             pass
         return await self.extract_from_text(content, benchmark=benchmark, lang=lang)
@@ -127,7 +145,7 @@ class ExtractionPipeline:
         # LLM Semantic Extraction
         try:
             llm_result = self.extract_semantic_fields(text)
-        except (ModelNotAvailableError, ParsingError) as e:
+        except ParsingError as e:
             logger.warning(f"Book metadata extraction failed: {e}")
             llm_result = {}
 
@@ -179,7 +197,7 @@ class ExtractionPipeline:
         # LLM Semantic Extraction for magazines
         try:
             llm_result = self.extract_magazine_semantic_fields(text, lang=lang)
-        except (ModelNotAvailableError, ParsingError) as e:
+        except ParsingError as e:
             logger.warning(f"Magazine metadata extraction failed: {e}")
             llm_result = {}
 

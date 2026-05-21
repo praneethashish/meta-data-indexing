@@ -44,17 +44,6 @@ def health():
     return {"status": "ok", "model_ready": manager.is_loaded()}
 
 
-def _llm_configuration_error(exc: RuntimeError) -> HTTPException:
-    return HTTPException(
-        status_code=400,
-        detail=(
-            "Invalid LLM configuration. Set BOOKEXTRACTOR_LLM_MODEL, BOOKEXTRACTOR_LLM_BASE_URL, "
-            "and BOOKEXTRACTOR_LLM_API_KEY together, or remove them to use the local vLLM fallback. "
-            f"Details: {exc}"
-        ),
-    )
-
-
 @app.post("/extract/async")
 async def extract_async(
     file: UploadFile = File(...),  # noqa: B008
@@ -169,7 +158,7 @@ async def _extract_file(
 
     os.makedirs(os.path.dirname(os.path.abspath(output_json)), exist_ok=True)
     with open(output_json, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2)
+        json.dump(result, f, indent=2, ensure_ascii=False)
     logger.info("Results saved to %s", output_json)
 
 
