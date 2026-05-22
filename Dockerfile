@@ -34,4 +34,4 @@ RUN uv pip install --system --no-cache-dir .
 RUN uv pip install --system --no-cache-dir "numpy<2"
 
 # Run API
-CMD ["python", "-m", "bookextractor.main", "--api"]
+CMD ["python", "-m", "metaextractor.main", "--api"]

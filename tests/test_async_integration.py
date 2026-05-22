@@ -4,9 +4,9 @@ import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from bookextractor import celery_config
-from bookextractor.main import app, cli_app
-from bookextractor.tasks import extract_image_task, extract_pdf_task, extract_text_task, get_pipeline
+from metaextractor import celery_config
+from metaextractor.main import app, cli_app
+from metaextractor.tasks import extract_image_task, extract_pdf_task, extract_text_task, get_pipeline
 
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def client():
 
 @pytest.mark.asyncio
 async def test_extract_async_pdf(client):
-    with patch("bookextractor.main.extract_pdf_task") as mock_task:
+    with patch("metaextractor.main.extract_pdf_task") as mock_task:
         mock_task.delay.return_value = MagicMock(id="test-job-id")
 
         pdf_content = b"%PDF-1.4\n..."
@@ -30,7 +30,7 @@ async def test_extract_async_pdf(client):
 
 @pytest.mark.asyncio
 async def test_extract_async_image(client):
-    with patch("bookextractor.main.extract_image_task") as mock_task:
+    with patch("metaextractor.main.extract_image_task") as mock_task:
         mock_result = MagicMock(id="img-job-id")
         mock_task.apply_async.return_value = mock_result
 
@@ -45,7 +45,7 @@ async def test_extract_async_image(client):
 
 @pytest.mark.asyncio
 async def test_extract_async_text(client):
-    with patch("bookextractor.main.extract_text_task") as mock_task:
+    with patch("metaextractor.main.extract_text_task") as mock_task:
         mock_task.delay.return_value = MagicMock(id="txt-job-id")
 
         txt_content = b"hello world"
@@ -59,7 +59,7 @@ async def test_extract_async_text(client):
 
 
 def test_get_job_status_pending(client):
-    with patch("bookextractor.main.celery_app.AsyncResult") as mock_result:
+    with patch("metaextractor.main.celery_app.AsyncResult") as mock_result:
         mock_instance = MagicMock()
         mock_instance.state = "PENDING"
         mock_instance.ready.return_value = False
@@ -71,7 +71,7 @@ def test_get_job_status_pending(client):
 
 
 def test_get_job_status_success(client):
-    with patch("bookextractor.main.celery_app.AsyncResult") as mock_result:
+    with patch("metaextractor.main.celery_app.AsyncResult") as mock_result:
         mock_instance = MagicMock()
         mock_instance.state = "SUCCESS"
         mock_instance.ready.return_value = True
@@ -86,7 +86,7 @@ def test_get_job_status_success(client):
 
 
 def test_get_job_status_failure(client):
-    with patch("bookextractor.main.celery_app.AsyncResult") as mock_result:
+    with patch("metaextractor.main.celery_app.AsyncResult") as mock_result:
         mock_instance = MagicMock()
         mock_instance.state = "FAILURE"
         mock_instance.ready.return_value = True
@@ -100,7 +100,7 @@ def test_get_job_status_failure(client):
         assert response.json()["error"] == "Task failed error"
 
 
-@patch("bookextractor.tasks.get_pipeline")
+@patch("metaextractor.tasks.get_pipeline")
 @patch("os.path.exists")
 @patch("os.remove")
 def test_tasks_pdf(mock_remove, mock_exists, mock_get_p):
@@ -114,7 +114,7 @@ def test_tasks_pdf(mock_remove, mock_exists, mock_get_p):
     mock_remove.assert_called_with("fake.pdf")
 
 
-@patch("bookextractor.tasks.get_pipeline")
+@patch("metaextractor.tasks.get_pipeline")
 @patch("os.path.exists")
 @patch("os.remove")
 def test_tasks_image(mock_remove, mock_exists, mock_get_p):
@@ -128,7 +128,7 @@ def test_tasks_image(mock_remove, mock_exists, mock_get_p):
     mock_remove.assert_called_with("fake.jpg")
 
 
-@patch("bookextractor.tasks.get_pipeline")
+@patch("metaextractor.tasks.get_pipeline")
 @patch("os.path.exists")
 @patch("os.remove")
 def test_tasks_text(mock_remove, mock_exists, mock_get_p):
@@ -156,9 +156,9 @@ def test_cli_worker_command():
 
 
 def test_get_pipeline_lazy_loading():
-    with patch("bookextractor.tasks.ExtractionPipeline") as mock_ep:
+    with patch("metaextractor.tasks.ExtractionPipeline") as mock_ep:
         # Clear global state for test
-        import bookextractor.tasks as tasks
+        import metaextractor.tasks as tasks
 
         tasks._pipeline_with_vlm = None
         tasks._pipeline_no_vlm = None
@@ -195,7 +195,7 @@ async def test_extract_async_no_filename(client):
 
 @pytest.mark.asyncio
 async def test_extract_async_submission_failure(client):
-    with patch("bookextractor.main.extract_text_task.delay", side_effect=Exception("Submit error")):
+    with patch("metaextractor.main.extract_text_task.delay", side_effect=Exception("Submit error")):
         files = {"file": ("test.md", b"data", "text/markdown")}
         response = client.post("/extract/async", files=files)
         assert response.status_code == 500

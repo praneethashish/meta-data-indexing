@@ -28,7 +28,7 @@ BookExtractor extracts structured metadata from scanned Telugu/Hindi/English boo
 │                                                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────────────┐   │
 │  │   CLI (Typer) │  │  FastAPI     │  │  Celery Worker (CLI command)    │   │
-│  │  bookextractor│  │  POST /extract│  │  bookextractor worker -q ...   │   │
+│  │  metaextractor│  │  POST /extract│  │  metaextractor worker -q ...   │   │
 │  │  extract      │  │  POST /extract/async                              │   │
 │  │  model list   │  │  GET  /jobs/{id}                                  │   │
 │  │  model download│ │  GET  /health                                     │   │
@@ -199,7 +199,7 @@ Env var overrides: `VLLM_DEVICE`, `VLLM_DTYPE`, `VLLM_GPU_MEMORY_UTILIZATION`, `
 │                        docker-compose.yml                            │
 │                                                                       │
 │  ┌─────────────┐    ┌──────────┐    ┌──────────────┐                │
-│  │ bookextractor│    │  redis   │    │model-downloader│              │
+│  │ metaextractor│    │  redis   │    │model-downloader│              │
 │  │ (FastAPI)   │    │  6379    │    │ (HF download) │                │
 │  │ GPU + LLM   │    │          │    │               │                │
 │  └──────┬──────┘    └────┬─────┘    └───────┬───────┘                │
@@ -236,7 +236,7 @@ Env var overrides: `VLLM_DEVICE`, `VLLM_DTYPE`, `VLLM_GPU_MEMORY_UTILIZATION`, `
 ```
 
 ### Volume Mount Strategy
-All services mount `~/.cache/huggingface:/models/huggingface` so models downloaded by `model-downloader` are visible to `bookextractor`, `worker-gpu`, `worker-cpu`, and all vParse services.
+All services mount `~/.cache/huggingface:/models/huggingface` so models downloaded by `model-downloader` are visible to `metaextractor`, `worker-gpu`, `worker-cpu`, and all vParse services.
 
 ---
 
@@ -279,7 +279,7 @@ Client → POST /extract/async
 
 ### 5.3 CLI Extraction (Sync)
 ```
-bookextractor extract input.pdf output.json --lang te
+metaextractor extract input.pdf output.json --lang te
   → _extract_file()
   → get_pipeline()  [singleton in process]
   → process_pdf() / process_text_file() / process_image()
@@ -315,7 +315,7 @@ bookextractor extract input.pdf output.json --lang te
 | Issue | Severity | Status |
 |-------|----------|--------|
 | `vllm` imported at module level in `pipeline.py` | Medium | CPU workers load ~200-300MB extra per process. Lazy import would reduce to ~100MB/process |
-| `Dockerfile.bookextractor` uses CUDA 12.4 but docker-compose sets `HF_HOME=/root/.cache/huggingface/hub` (different from compose bind mount) | Low | Runtime env var `HF_HOME=/models/huggingface` overrides Dockerfile default |
+| `Dockerfile.metaextractor` uses CUDA 12.4 but docker-compose sets `HF_HOME=/root/.cache/huggingface/hub` (different from compose bind mount) | Low | Runtime env var `HF_HOME=/models/huggingface` overrides Dockerfile default |
 | `worker-cpu` has `HF_HOME` set but doesn't need it (no LLM) | Cosmetic | No functional impact |
 | `pyproject.toml` has duplicate `pytest-httpx>=0.36.2` entry | Cosmetic | uv handles dedup, no functional impact |
 | `_extract_file` uses `os.path.dirname(os.path.abspath(output_json))` which fails if output is just a filename | Low | Works for paths with directories, fails for bare filenames |
@@ -329,20 +329,20 @@ bookextractor extract input.pdf output.json --lang te
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `bookextractor/main.py` | 383 | CLI + FastAPI entry points |
-| `bookextractor/pipeline.py` | 320 | Core extraction pipeline |
-| `bookextractor/celery_config.py` | 38 | Celery broker/queue config |
-| `bookextractor/tasks.py` | 64 | Celery task definitions |
-| `bookextractor/vlm_client.py` | 106 | vLLM singleton wrapper |
-| `bookextractor/hardware.py` | 215 | GPU/CPU/TPU detection + vLLM config |
-| `bookextractor/models_registry.py` | 120 | Model cache scanner + registry |
-| `bookextractor/models.py` | 74 | Pydantic data models |
-| `bookextractor/vparse_client.py` | 35 | vParse OCR HTTP client |
-| `bookextractor/external_api.py` | 29 | Open Library ISBN lookup |
-| `bookextractor/validation.py` | 39 | ISBN regex + checksum |
-| `bookextractor/image_utils.py` | 109 | Image metadata + EXIF extraction |
+| `metaextractor/main.py` | 383 | CLI + FastAPI entry points |
+| `metaextractor/pipeline.py` | 320 | Core extraction pipeline |
+| `metaextractor/celery_config.py` | 38 | Celery broker/queue config |
+| `metaextractor/tasks.py` | 64 | Celery task definitions |
+| `metaextractor/vlm_client.py` | 106 | vLLM singleton wrapper |
+| `metaextractor/hardware.py` | 215 | GPU/CPU/TPU detection + vLLM config |
+| `metaextractor/models_registry.py` | 120 | Model cache scanner + registry |
+| `metaextractor/models.py` | 74 | Pydantic data models |
+| `metaextractor/vparse_client.py` | 35 | vParse OCR HTTP client |
+| `metaextractor/external_api.py` | 29 | Open Library ISBN lookup |
+| `metaextractor/validation.py` | 39 | ISBN regex + checksum |
+| `metaextractor/image_utils.py` | 109 | Image metadata + EXIF extraction |
 | `scripts/setup_models.py` | 44 | Docker model downloader |
 | `docker-compose.yml` | 238 | Service orchestration |
-| `Dockerfile.bookextractor` | 22 | BookExtractor container |
+| `Dockerfile.metaextractor` | 22 | BookExtractor container |
 | `Dockerfile.model-downloader` | — | Model download container |
 | `tests/` | — | 140 tests, 95% coverage |

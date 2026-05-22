@@ -81,7 +81,7 @@ POST /extract/async
 
 | Service | Queue | GPU | Concurrency |
 |---------|-------|-----|-------------|
-| `bookextractor` | N/A (API) | Yes | N/A |
+| `metaextractor` | N/A (API) | Yes | N/A |
 | `worker-gpu` | `vlm_queue` | Yes | 2 |
 | `worker-cpu` | `default_queue` | No | 8 |
 | `redis` | N/A | No | N/A |
@@ -93,11 +93,11 @@ POST /extract/async
 
 ```bash
 # Start a Celery worker
-uv run bookextractor worker --queue vlm_queue --concurrency 2
-uv run bookextractor worker --queue default_queue --concurrency 8
+uv run metaextractor worker --queue vlm_queue --concurrency 2
+uv run metaextractor worker --queue default_queue --concurrency 8
 
 # Start Flower monitoring
-celery -A bookextractor.tasks flower --port=5555
+celery -A metaextractor.tasks flower --port=5555
 ```
 
 ---

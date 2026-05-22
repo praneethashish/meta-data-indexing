@@ -69,17 +69,17 @@ class LocalVLLMClient(BaseLLMClient):
 class AnyLLMClient(BaseLLMClient):
     def __init__(self, model_id: str | None = None):
         s = _settings()
-        model = model_id or s.BOOKEXTRACTOR_LLM_MODEL
+        model = model_id or s.METAEXTRACTOR_LLM_MODEL
         if not model:
-            raise RuntimeError("BOOKEXTRACTOR_LLM_MODEL must be set when env-configured anyllm inference is used.")
+            raise RuntimeError("METAEXTRACTOR_LLM_MODEL must be set when env-configured anyllm inference is used.")
 
-        base_url = s.BOOKEXTRACTOR_LLM_BASE_URL
-        api_key = s.BOOKEXTRACTOR_LLM_API_KEY
+        base_url = s.METAEXTRACTOR_LLM_BASE_URL
+        api_key = s.METAEXTRACTOR_LLM_API_KEY
 
         if not base_url:
-            raise RuntimeError("BOOKEXTRACTOR_LLM_BASE_URL must be set when env-configured anyllm inference is used.")
+            raise RuntimeError("METAEXTRACTOR_LLM_BASE_URL must be set when env-configured anyllm inference is used.")
         if not api_key:
-            raise RuntimeError("BOOKEXTRACTOR_LLM_API_KEY must be set when env-configured anyllm inference is used.")
+            raise RuntimeError("METAEXTRACTOR_LLM_API_KEY must be set when env-configured anyllm inference is used.")
 
         try:
             anyllm = _import_anyllm()
@@ -88,7 +88,7 @@ class AnyLLMClient(BaseLLMClient):
 
         self._model = model
         self._anyllm = anyllm
-        self._provider = s.BOOKEXTRACTOR_LLM_PROVIDER or "openai"
+        self._provider = s.METAEXTRACTOR_LLM_PROVIDER or "openai"
         self._prefixed_model = f"{self._provider}/{self._model}"
         self._configure_anyllm(base_url=base_url, api_key=api_key)
 
@@ -130,15 +130,15 @@ class AnyLLMClient(BaseLLMClient):
 
 def has_remote_llm_config() -> bool:
     s = _settings()
-    return bool(s.BOOKEXTRACTOR_LLM_MODEL and s.BOOKEXTRACTOR_LLM_BASE_URL and s.BOOKEXTRACTOR_LLM_API_KEY)
+    return bool(s.METAEXTRACTOR_LLM_MODEL and s.METAEXTRACTOR_LLM_BASE_URL and s.METAEXTRACTOR_LLM_API_KEY)
 
 
 def has_partial_remote_llm_config() -> bool:
     s = _settings()
     values = [
-        s.BOOKEXTRACTOR_LLM_MODEL,
-        s.BOOKEXTRACTOR_LLM_BASE_URL,
-        s.BOOKEXTRACTOR_LLM_API_KEY,
+        s.METAEXTRACTOR_LLM_MODEL,
+        s.METAEXTRACTOR_LLM_BASE_URL,
+        s.METAEXTRACTOR_LLM_API_KEY,
     ]
     return any(values) and not all(values)
 
@@ -149,8 +149,8 @@ def create_llm_client(model_id: str | None = None, backend: str = "auto") -> Bas
 
     if has_partial_remote_llm_config():
         raise RuntimeError(
-            "Incomplete remote LLM configuration. Set BOOKEXTRACTOR_LLM_MODEL, "
-            "BOOKEXTRACTOR_LLM_BASE_URL, and BOOKEXTRACTOR_LLM_API_KEY together."
+            "Incomplete remote LLM configuration. Set METAEXTRACTOR_LLM_MODEL, "
+            "METAEXTRACTOR_LLM_BASE_URL, and METAEXTRACTOR_LLM_API_KEY together."
         )
 
     if backend == "remote" or has_remote_llm_config():

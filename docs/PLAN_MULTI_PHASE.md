@@ -48,20 +48,20 @@
 
 | Module             | Path                             | Responsibility                     |
 | ------------------ | -------------------------------- | ---------------------------------- |
-| `main.py`          | `bookextractor/main.py`          | FastAPI application, format router |
-| `pipeline.py`      | `bookextractor/pipeline.py`      | Extraction pipeline orchestrator   |
-| `vparse_client.py` | `bookextractor/vparse_client.py` | VParse API client                  |
-| `image_utils.py`   | `bookextractor/image_utils.py`   | EXIF extraction utilities          |
-| `models.py`        | `bookextractor/models.py`        | Pydantic data models               |
-| `validation.py`    | `bookextractor/validation.py`    | ISBN validation                    |
-| `external_api.py`  | `bookextractor/external_api.py`  | OpenLibrary API client             |
+| `main.py`          | `metaextractor/main.py`          | FastAPI application, format router |
+| `pipeline.py`      | `metaextractor/pipeline.py`      | Extraction pipeline orchestrator   |
+| `vparse_client.py` | `metaextractor/vparse_client.py` | VParse API client                  |
+| `image_utils.py`   | `metaextractor/image_utils.py`   | EXIF extraction utilities          |
+| `models.py`        | `metaextractor/models.py`        | Pydantic data models               |
+| `validation.py`    | `metaextractor/validation.py`    | ISBN validation                    |
+| `external_api.py`  | `metaextractor/external_api.py`  | OpenLibrary API client             |
 
 ### Environment Variables (Phase 1)
 
 | Variable                   | Description                        | Default                            |
 | -------------------------- | ---------------------------------- | ---------------------------------- |
 | `VPARSE_API_URL`           | VParse API endpoint                | `http://localhost:8000/file_parse` |
-| `BOOKEXTRACTOR_MODELS_DIR` | Local models directory             | `./models`                         |
+| `METAEXTRACTOR_MODELS_DIR` | Local models directory             | `./models`                         |
 
 ---
 
@@ -100,7 +100,7 @@
 
 ### 2.1 Audio/Video Metadata Extraction
 
-**New Module:** `bookextractor/media_utils.py`
+**New Module:** `metaextractor/media_utils.py`
 
 ```python
 # Pseudocode interface
@@ -144,7 +144,7 @@ class VideoMetadata(BaseModel):
 
 ### 2.2 Pre-OCR Regex Extraction
 
-**New Module:** `bookextractor/pdf_metadata_extractor.py`
+**New Module:** `metaextractor/pdf_metadata_extractor.py`
 
 ```python
 def extract_pdf_metadata_pre_ocr(file_path: str) -> dict[str, Any]:
@@ -183,7 +183,7 @@ def extract_pdf_metadata_pre_ocr(file_path: str) -> dict[str, Any]:
 
 ### 2.3 Image Level 2 VLM Enhancement (Gemma-4 via vLLM)
 
-**Module:** `bookextractor/vlm_client.py` (or integrated into `pipeline.py`)
+**Module:** `metaextractor/vlm_client.py` (or integrated into `pipeline.py`)
 
 **VLM Prompt for Gemma-4:**
 
@@ -287,19 +287,19 @@ class ExtractionPipeline:
 
 ```bash
 # Text file extraction - uses Gemma-4 vLLM
-bookextractor book.pdf output.json
+metaextractor book.pdf output.json
 
 # Image extraction - uses Gemma-4 vLLM for description (Level 2)
-bookextractor cover.jpg output.json
+metaextractor cover.jpg output.json
 
 # JSON/MD file extraction - uses Gemma-4 vLLM
-bookextractor metadata.json output.json
+metaextractor metadata.json output.json
 
 # With benchmark mode
-bookextractor book.pdf output.json --benchmark
+metaextractor book.pdf output.json --benchmark
 
 # Start API server (uses same vLLM engine)
-bookextractor --api
+metaextractor --api
 ```
 
 **Code Changes Required:**
@@ -392,13 +392,13 @@ class VLMClient:
 
 ```bash
 # Test CLI mode
-bookextractor test.pdf output.json --benchmark
+metaextractor test.pdf output.json --benchmark
 
 # Check vLLM is loaded (should see GPU memory allocation)
 nvidia-smi
 
 # Test image Level 2 extraction
-bookextractor test_image.jpg output.json
+metaextractor test_image.jpg output.json
 ```
 
 ---
@@ -446,22 +446,22 @@ bookextractor test_image.jpg output.json
 
 ### 2.6 Celery Foundation (Async-Ready)
 
-**New Module:** `bookextractor/tasks.py`
+**New Module:** `metaextractor/tasks.py`
 
 ```python
 from celery import Celery
 
-celery_app = Celery("bookextractor")
-celery_app.config_from_object("bookextractor.celery_config")
+celery_app = Celery("metaextractor")
+celery_app.config_from_object("metaextractor.celery_config")
 
-@celery_app.task(bind=True, name="bookextractor.extract")
+@celery_app.task(bind=True, name="metaextractor.extract")
 def extract_task(self, file_path: str, options: dict):
     """Celery task for async extraction - currently sync"""
     result = run_extraction_sync(file_path, options)
     return result
 ```
 
-**Configuration:** `bookextractor/celery_config.py`
+**Configuration:** `metaextractor/celery_config.py`
 
 ```python
 task_always_eager = True  # True = sync, False = async (Phase 3)
@@ -534,13 +534,13 @@ async def get_job_status(job_id: str):
 
 ```bash
 # GPU worker for LLM tasks
-celery -A bookextractor.tasks worker \
+celery -A metaextractor.tasks worker \
     --hostname=vlm-worker@%h \
     --concurrency=2 \
     -Q vlm_queue
 
 # CPU worker for image extraction
-celery -A bookextractor.tasks worker \
+celery -A metaextractor.tasks worker \
     --hostname=extraction-worker@%h \
     --concurrency=8 \
     -Q default_queue

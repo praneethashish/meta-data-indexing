@@ -45,7 +45,7 @@ repos:
     rev: v1.15.0
     hooks:
       - id: mypy
-        exclude: ^(tests/|bookextractor/vulture_whitelist\.py$)
+        exclude: ^(tests/|metaextractor/vulture_whitelist\.py$)
         additional_dependencies: [
           "pydantic>=2.0.0",
           "fastapi>=0.100.0",
@@ -62,12 +62,12 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-        args: ["bookextractor/", "bookextractor/vulture_whitelist.py", "--min-confidence", "80"]
+        args: ["metaextractor/", "metaextractor/vulture_whitelist.py", "--min-confidence", "80"]
         stages: [pre-commit]
 
       - id: pytest-cov
         name: pytest coverage
-        entry: uv run pytest tests/ --cov=bookextractor --cov-report=term-missing --cov-fail-under=90
+        entry: uv run pytest tests/ --cov=metaextractor --cov-report=term-missing --cov-fail-under=90
         language: system
         types: [python]
         pass_filenames: false

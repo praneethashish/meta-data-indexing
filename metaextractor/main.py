@@ -66,8 +66,8 @@ async def extract_async(
         raise HTTPException(
             status_code=400,
             detail=(
-                "Incomplete remote LLM configuration. Set BOOKEXTRACTOR_LLM_MODEL, "
-                "BOOKEXTRACTOR_LLM_BASE_URL, and BOOKEXTRACTOR_LLM_API_KEY together, "
+                "Incomplete remote LLM configuration. Set METAEXTRACTOR_LLM_MODEL, "
+                "METAEXTRACTOR_LLM_BASE_URL, and METAEXTRACTOR_LLM_API_KEY together, "
                 "or remove them to use the local vLLM fallback."
             ),
         )
@@ -151,23 +151,23 @@ async def _extract_file(
     elif backend == LLMBackend.REMOTE:
         if has_partial_remote_llm_config():
             print(
-                "Error: Incomplete remote LLM configuration. Set BOOKEXTRACTOR_LLM_MODEL, "
-                "BOOKEXTRACTOR_LLM_BASE_URL, and BOOKEXTRACTOR_LLM_API_KEY together."
+                "Error: Incomplete remote LLM configuration. Set METAEXTRACTOR_LLM_MODEL, "
+                "METAEXTRACTOR_LLM_BASE_URL, and METAEXTRACTOR_LLM_API_KEY together."
             )
             raise typer.Exit(code=1)
         if not has_partial_remote_llm_config() and not has_partial_remote_llm_config():
-            s = __import__("bookextractor.config", fromlist=["settings"]).settings
-            if not (s.BOOKEXTRACTOR_LLM_MODEL and s.BOOKEXTRACTOR_LLM_BASE_URL and s.BOOKEXTRACTOR_LLM_API_KEY):
+            s = __import__("metaextractor.config", fromlist=["settings"]).settings
+            if not (s.METAEXTRACTOR_LLM_MODEL and s.METAEXTRACTOR_LLM_BASE_URL and s.METAEXTRACTOR_LLM_API_KEY):
                 print(
-                    "Error: --backend remote requires BOOKEXTRACTOR_LLM_MODEL, "
-                    "BOOKEXTRACTOR_LLM_BASE_URL, and BOOKEXTRACTOR_LLM_API_KEY to be set."
+                    "Error: --backend remote requires METAEXTRACTOR_LLM_MODEL, "
+                    "METAEXTRACTOR_LLM_BASE_URL, and METAEXTRACTOR_LLM_API_KEY to be set."
                 )
                 raise typer.Exit(code=1)
     else:
         if needs_llm and has_partial_remote_llm_config():
             print(
-                "Error: Incomplete remote LLM configuration. Set BOOKEXTRACTOR_LLM_MODEL, "
-                "BOOKEXTRACTOR_LLM_BASE_URL, and BOOKEXTRACTOR_LLM_API_KEY together, "
+                "Error: Incomplete remote LLM configuration. Set METAEXTRACTOR_LLM_MODEL, "
+                "METAEXTRACTOR_LLM_BASE_URL, and METAEXTRACTOR_LLM_API_KEY together, "
                 "or remove them to use the local vLLM fallback."
             )
             raise typer.Exit(code=1)
@@ -233,8 +233,8 @@ def main(
         return
 
     print(
-        "Error: Missing arguments. Usage: bookextractor extract <input_file> <output.json> [--lang te], "
-        "or bookextractor api"
+        "Error: Missing arguments. Usage: metaextractor extract <input_file> <output.json> [--lang te], "
+        "or metaextractor api"
     )
     raise typer.Exit(code=1)
 
@@ -299,7 +299,7 @@ def worker_command(
     cmd = [
         "celery",
         "-A",
-        "bookextractor.tasks",
+        "metaextractor.tasks",
         "worker",
         "-Q",
         queue,

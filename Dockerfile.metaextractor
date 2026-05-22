@@ -1,4 +1,4 @@
-# Dockerfile.bookextractor - BookExtractor FastAPI service with GPU support
+# Dockerfile.metaextractor - BookExtractor FastAPI service with GPU support
 FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
 
 WORKDIR /app
@@ -19,10 +19,10 @@ COPY pyproject.toml uv.lock* ./
 RUN uv pip install --system --no-install-project .
 
 # Now copy the frequently-changing source code
-COPY bookextractor/ ./bookextractor/
+COPY metaextractor/ ./metaextractor/
 
 # Install the project itself
 RUN uv pip install --system --no-deps -e .
 
 EXPOSE 8000
-CMD ["uvicorn", "bookextractor.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "metaextractor.main:app", "--host", "0.0.0.0", "--port", "8000"]

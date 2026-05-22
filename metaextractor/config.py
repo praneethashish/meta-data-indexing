@@ -73,9 +73,9 @@ class Settings:
 
     def __init__(self) -> None:
         # ── Paths ──────────────────────────────────────────────
-        self.UPLOAD_DIR: str = os.getenv("BOOKEXTRACTOR_UPLOAD_DIR", "uploads")
+        self.UPLOAD_DIR: str = os.getenv("METAEXTRACTOR_UPLOAD_DIR", "uploads")
         self.MODELS_DIR: str = os.getenv(
-            "BOOKEXTRACTOR_MODELS_DIR", str(Path(__file__).resolve().parents[1] / "models")
+            "METAEXTRACTOR_MODELS_DIR", str(Path(__file__).resolve().parents[1] / "models")
         )
         self.HF_HOME: str = os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
 
@@ -94,10 +94,10 @@ class Settings:
         self.MAX_MODEL_LEN: int = int(os.getenv("MAX_MODEL_LEN", "4096"))
 
         # ── Remote LLM (anyLLM) ────────────────────────────────
-        self.BOOKEXTRACTOR_LLM_MODEL: str | None = os.getenv("BOOKEXTRACTOR_LLM_MODEL")
-        self.BOOKEXTRACTOR_LLM_BASE_URL: str | None = os.getenv("BOOKEXTRACTOR_LLM_BASE_URL")
-        self.BOOKEXTRACTOR_LLM_API_KEY: str | None = os.getenv("BOOKEXTRACTOR_LLM_API_KEY")
-        self.BOOKEXTRACTOR_LLM_PROVIDER: str | None = os.getenv("BOOKEXTRACTOR_LLM_PROVIDER")
+        self.METAEXTRACTOR_LLM_MODEL: str | None = os.getenv("METAEXTRACTOR_LLM_MODEL")
+        self.METAEXTRACTOR_LLM_BASE_URL: str | None = os.getenv("METAEXTRACTOR_LLM_BASE_URL")
+        self.METAEXTRACTOR_LLM_API_KEY: str | None = os.getenv("METAEXTRACTOR_LLM_API_KEY")
+        self.METAEXTRACTOR_LLM_PROVIDER: str | None = os.getenv("METAEXTRACTOR_LLM_PROVIDER")
 
         # ── Text Extraction Defaults ───────────────────────────
         self.DEFAULT_TEMPERATURE: float = float(os.getenv("DEFAULT_TEMPERATURE", "0.7"))

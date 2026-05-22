@@ -2,8 +2,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from bookextractor.model_manager import ModelManager
-from bookextractor.pipeline import ExtractionPipeline
+from metaextractor.model_manager import ModelManager
+from metaextractor.pipeline import ExtractionPipeline
 
 
 @pytest.fixture
@@ -23,8 +23,8 @@ def pipeline():
     mock_vision_client = MagicMock()
 
     with (
-        patch("bookextractor.pipeline.create_llm_client", return_value=mock_llm_client),
-        patch("bookextractor.pipeline.ModelClient.get_instance", return_value=mock_vision_client),
+        patch("metaextractor.pipeline.create_llm_client", return_value=mock_llm_client),
+        patch("metaextractor.pipeline.ModelClient.get_instance", return_value=mock_vision_client),
     ):
         p = ExtractionPipeline()
         p.llm_client = mock_llm_client

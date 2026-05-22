@@ -1,9 +1,9 @@
 import os
 import time
 
-import bookextractor.tasks as tasks_module
-from bookextractor.config import settings
-from bookextractor.tasks import cleanup_stale_uploads
+import metaextractor.tasks as tasks_module
+from metaextractor.config import settings
+from metaextractor.tasks import cleanup_stale_uploads
 
 
 def test_cleanup_stale_uploads_removes_old_files(tmp_path, monkeypatch):
@@ -24,7 +24,7 @@ def test_cleanup_stale_uploads_removes_old_files(tmp_path, monkeypatch):
 
 
 def test_cleanup_stale_uploads_skips_fresh_files(tmp_path, monkeypatch):
-    monkeypatch.setattr("bookextractor.config.settings.UPLOAD_DIR", str(tmp_path))
+    monkeypatch.setattr("metaextractor.config.settings.UPLOAD_DIR", str(tmp_path))
 
     fresh_file = tmp_path / "fresh_file.txt"
     fresh_file.write_text("new data")
@@ -42,7 +42,7 @@ def test_cleanup_stale_uploads_handles_missing_dir(tmp_path, monkeypatch):
 
 
 def test_cleanup_stale_uploads_skips_in_flight_files(tmp_path, monkeypatch):
-    monkeypatch.setattr("bookextractor.config.settings.UPLOAD_DIR", str(tmp_path))
+    monkeypatch.setattr("metaextractor.config.settings.UPLOAD_DIR", str(tmp_path))
 
     stale_file = tmp_path / "in_flight_stale.txt"
     stale_file.write_text("old data")
@@ -62,7 +62,7 @@ def test_cleanup_stale_uploads_skips_in_flight_files(tmp_path, monkeypatch):
 
 
 def test_in_flight_register_and_unregister():
-    from bookextractor.tasks import _in_flight_files, _register_in_flight, _unregister_in_flight
+    from metaextractor.tasks import _in_flight_files, _register_in_flight, _unregister_in_flight
 
     _register_in_flight("/tmp/test_file.pdf")
     assert "/tmp/test_file.pdf" in _in_flight_files

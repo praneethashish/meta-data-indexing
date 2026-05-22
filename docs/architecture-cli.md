@@ -25,9 +25,9 @@ BookExtractor extracts structured metadata from scanned Telugu/Hindi/English boo
 ```
 --backend flag (CLI) or llm_backend param (programmatic)
     ├── "local"  → LocalVLLMClient (ignores remote env vars)
-    ├── "remote" → AnyLLMClient (requires BOOKEXTRACTOR_LLM_* vars)
+    ├── "remote" → AnyLLMClient (requires METAEXTRACTOR_LLM_* vars)
     └── "auto"   → env-driven (default):
-                   .env has all 3 BOOKEXTRACTOR_LLM_* vars?
+                   .env has all 3 METAEXTRACTOR_LLM_* vars?
                        ├── Yes → AnyLLMClient (remote HTTP, no GPU)
                        └── No  → LocalVLLMClient (local vLLM on GPU)
 ```
@@ -44,7 +44,7 @@ BookExtractor extracts structured metadata from scanned Telugu/Hindi/English boo
 │                                                                              │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │  CLI (Typer)                                                         │   │
-│  │  bookextractor extract <input> <output.json> [options]               │   │
+│  │  metaextractor extract <input> <output.json> [options]               │   │
 │  └──────────────────────────┬───────────────────────────────────────────┘   │
 │                             │                                                │
 │                             ▼                                                │
@@ -70,7 +70,7 @@ BookExtractor extracts structured metadata from scanned Telugu/Hindi/English boo
 │  ┌───────┴──────────────────────────────────────────────────────────┐     │
 │  │  LLM Backend Selection (create_llm_client)                        │     │
 │  │                                                                    │     │
-│  │  .env has BOOKEXTRACTOR_LLM_*?                                     │     │
+│  │  .env has METAEXTRACTOR_LLM_*?                                     │     │
 │  │  ├── Yes → AnyLLMClient ──► anyllm ──► HTTP POST to remote URL    │     │
 │  │  └── No  → LocalVLLMClient ──► ModelClient ──► ModelManager       │     │
 │  │                              └─► vLLM engine (GPU)                │     │
@@ -151,7 +151,7 @@ BookExtractor extracts structured metadata from scanned Telugu/Hindi/English boo
 ### 2.3 File Processing Flow
 
 ```
-                    bookextractor extract input output
+                    metaextractor extract input output
                               │
                               ▼
                     _extract_file()
@@ -203,19 +203,19 @@ BookExtractor extracts structured metadata from scanned Telugu/Hindi/English boo
 ### CLI Command
 
 ```bash
-uv run bookextractor extract input.json output.json
-uv run bookextractor extract input.pdf output.json --lang te
-uv run bookextractor extract input.jpg output.json --vlm
+uv run metaextractor extract input.json output.json
+uv run metaextractor extract input.pdf output.json --lang te
+uv run metaextractor extract input.jpg output.json --vlm
 ```
 
-### File: `bookextractor/__init__.py`
+### File: `metaextractor/__init__.py`
 
 ```
 1. dotenv.load_dotenv(".env") — auto-loads env vars
 2. Imports main.py (app, cli_app)
 ```
 
-### File: `bookextractor/main.py`
+### File: `metaextractor/main.py`
 
 ```
 cli_app (Typer)
@@ -230,7 +230,7 @@ cli_app (Typer)
 ### 4.1 `.pdf` Files
 
 ```
-bookextractor extract book.pdf output.json
+metaextractor extract book.pdf output.json
     │
     ▼ main.py: extract_command()
     │   load_vlm = (not is_image) or use_vlm → True
@@ -275,7 +275,7 @@ bookextractor extract book.pdf output.json
 ### 4.2 `.json` Files (Pre-OCR'd)
 
 ```
-bookextractor extract ocrd.json output.json
+metaextractor extract ocrd.json output.json
     │
     ▼ main.py: extract_command()
     │   load_vlm = (not is_image) or use_vlm → True
@@ -303,7 +303,7 @@ bookextractor extract ocrd.json output.json
 ### 4.3 `.md` / `.txt` Files
 
 ```
-bookextractor extract book.md output.json
+metaextractor extract book.md output.json
     │
     ▼ pipeline.py: process_text_file()
     │   1. Read file content as plain text
@@ -316,7 +316,7 @@ bookextractor extract book.md output.json
 ### 4.4 `.jpg` / `.jpeg` / `.png` / `.webp` / `.tiff` / `.tif` Files
 
 ```
-bookextractor extract photo.jpg output.json
+metaextractor extract photo.jpg output.json
     │
     ▼ main.py: extract_command()
     │   load_vlm = (not is_image) or use_vlm → False (default)
@@ -383,7 +383,7 @@ bookextractor extract photo.jpg output.json
 | `AnyLLMClient` | Remote LLM via HTTP | `anyllm` package → OpenAI-compatible endpoint (model prefixed as `provider/model`) |
 | `LocalVLLMClient` | Local vLLM engine | `ModelClient` → `ModelManager` → vLLM |
 | `create_llm_client(backend)` | Factory — accepts `auto`, `remote`, `local` | Returns appropriate client based on mode + env vars |
-| `has_remote_llm_config()` | Checks all 3 BOOKEXTRACTOR_LLM_* vars | — |
+| `has_remote_llm_config()` | Checks all 3 METAEXTRACTOR_LLM_* vars | — |
 | `has_partial_remote_llm_config()` | Detects incomplete config (error case) | — |
 
 **AnyLLMClient Model Prefix:** anyLLM's `parse_model_string()` extracts the provider from the first `/` in the model string. Since HF model IDs like `Qwen/Qwen2.5-7B-Instruct` contain `/`, the client prefixes the model as `openai/Qwen/Qwen2.5-7B-Instruct` so anyLLM correctly identifies `openai` as the provider.
@@ -411,7 +411,7 @@ bookextractor extract photo.jpg output.json
 
 | Category | Env Vars |
 |---|---|
-| Remote LLM (anyLLM) | `BOOKEXTRACTOR_LLM_MODEL`, `BASE_URL`, `API_KEY`, `PROVIDER` (default: `openai`) |
+| Remote LLM (anyLLM) | `METAEXTRACTOR_LLM_MODEL`, `BASE_URL`, `API_KEY`, `PROVIDER` (default: `openai`) |
 | Local vLLM | `VLLM_MODEL_ID`, `VLLM_MODEL`, `VLLM_DEVICE`, `VLLM_DTYPE`, `VLLM_GPU_MEMORY_UTILIZATION`, `VLLM_TENSOR_PARALLEL_SIZE` |
 | API | `API_HOST`, `API_PORT` |
 | Celery | `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, etc. |
@@ -530,14 +530,14 @@ bookextractor extract photo.jpg output.json
 ## 7. CLI Commands
 
 ```
-bookextractor extract <input> <output.json> [options]
-bookextractor api [--host 0.0.0.0] [--port 8000]
-bookextractor worker [--queue default_queue] [--concurrency 4]
-bookextractor hardware-info
-bookextractor model list
-bookextractor model download
-bookextractor model remove <query>
-bookextractor model cache
+metaextractor extract <input> <output.json> [options]
+metaextractor api [--host 0.0.0.0] [--port 8000]
+metaextractor worker [--queue default_queue] [--concurrency 4]
+metaextractor hardware-info
+metaextractor model list
+metaextractor model download
+metaextractor model remove <query>
+metaextractor model cache
 ```
 
 ### Extract Options

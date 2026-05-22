@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from bookextractor.models import (
+from metaextractor.models import (
     BenchmarkResult,
     BookMetadata,
     ConfidenceScores,

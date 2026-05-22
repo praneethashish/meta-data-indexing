@@ -3,24 +3,24 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from bookextractor.hardware import detect_hardware, get_vllm_config
+from metaextractor.hardware import detect_hardware, get_vllm_config
 
 
 @pytest.fixture
 def mock_pynvml():
-    with patch("bookextractor.hardware.pynvml") as mock:
+    with patch("metaextractor.hardware.pynvml") as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_torch():
-    with patch("bookextractor.hardware.torch") as mock:
+    with patch("metaextractor.hardware.torch") as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_psutil():
-    with patch("bookextractor.hardware.psutil") as mock:
+    with patch("metaextractor.hardware.psutil") as mock:
         mock.virtual_memory.return_value.total = 32 * (1024**3)
         yield mock
 

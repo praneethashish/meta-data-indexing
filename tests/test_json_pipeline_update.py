@@ -14,7 +14,7 @@ async def test_process_json_with_transcription(pipeline):
     )
 
     # Mock ISBN lookup
-    with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_isbn:
+    with patch("metaextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_isbn:
         mock_isbn.return_value = {}
 
         # Create a temp JSON file with transcription and extra noise
@@ -55,7 +55,7 @@ async def test_process_json_fallback_if_no_transcription(pipeline):
     # Mock LLM generation through text backend
     pipeline.llm_client.extract_semantic_fields = MagicMock(return_value={"title": "Raw JSON Title"})
 
-    with patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_isbn:
+    with patch("metaextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_isbn:
         mock_isbn.return_value = {}
 
         # Create a temp JSON file WITHOUT transcription

@@ -36,7 +36,7 @@ In Docker mode, BookExtractor runs as a multi-service deployment with FastAPI, C
 │           │                                                                    │
 │           ▼                                                                    │
 │  ┌─────────────────┐         ┌──────────────┐                                 │
-│  │  bookextractor  │         │    redis     │                                 │
+│  │  metaextractor  │         │    redis     │                                 │
 │  │  (FastAPI)      │◄───────►│  6379        │                                 │
 │  │  port 8000      │  tasks  │  broker      │                                 │
 │  │  No GPU         │  results│  backend     │                                 │
@@ -82,7 +82,7 @@ In Docker mode, BookExtractor runs as a multi-service deployment with FastAPI, C
                       │ POST /extract/async (multipart/form-data)
                       ▼
             ┌─────────────────────┐
-            │  bookextractor      │
+            │  metaextractor      │
             │  (FastAPI)          │
             │                     │
             │  1. Validate ext    │
@@ -144,7 +144,7 @@ In Docker mode, BookExtractor runs as a multi-service deployment with FastAPI, C
                       │ POST /extract/async (multipart/form-data)
                       ▼
             ┌─────────────────────┐
-            │  bookextractor      │
+            │  metaextractor      │
             │  (FastAPI)          │
             │                     │
             │  1. Save to uploads/│
@@ -193,7 +193,7 @@ In Docker mode, BookExtractor runs as a multi-service deployment with FastAPI, C
                       │ POST /extract/async (use_vlm=true)
                       ▼
             ┌─────────────────────┐
-            │  bookextractor      │
+            │  metaextractor      │
             │  (FastAPI)          │
             │                     │
             │  1. Save to uploads/│
@@ -246,7 +246,7 @@ In Docker mode, BookExtractor runs as a multi-service deployment with FastAPI, C
                       │ POST /extract (multipart/form-data)
                       ▼
             ┌─────────────────────┐
-            │  bookextractor      │
+            │  metaextractor      │
             │  (FastAPI)          │
             │                     │
             │  1. Validate: images│
@@ -325,7 +325,7 @@ In Docker mode, BookExtractor runs as a multi-service deployment with FastAPI, C
 │                        docker-compose.yml                            │
 │                                                                       │
 │  ┌─────────────┐    ┌──────────┐    ┌──────────────┐                │
-│  │ bookextractor│    │  redis   │    │model-downloader│              │
+│  │ metaextractor│    │  redis   │    │model-downloader│              │
 │  │ (FastAPI)   │    │  6379    │    │ (HF download) │                │
 │  │ port 8000   │    │          │    │               │                │
 │  └──────┬──────┘    └────┬─────┘    └───────┬───────┘                │
@@ -351,13 +351,13 @@ In Docker mode, BookExtractor runs as a multi-service deployment with FastAPI, C
 │  └──────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.1 `bookextractor` — FastAPI Server
+### 3.1 `metaextractor` — FastAPI Server
 
 | Property | Value |
 |---|---|
-| Image | `bookextractor:latest` |
+| Image | `metaextractor:latest` |
 | Port | `8000:8000` |
-| Command | `bookextractor --api` (default) |
+| Command | `metaextractor --api` (default) |
 | GPU | No |
 | Purpose | Receives file uploads, queues Celery tasks, serves job status |
 
@@ -379,8 +379,8 @@ In Docker mode, BookExtractor runs as a multi-service deployment with FastAPI, C
 
 | Property | Value |
 |---|---|
-| Image | `bookextractor:latest` |
-| Command | `bookextractor worker --queue vlm_queue --concurrency 2` |
+| Image | `metaextractor:latest` |
+| Command | `metaextractor worker --queue vlm_queue --concurrency 2` |
 | GPU | Yes (NVIDIA, 1 device) |
 | Purpose | Processes PDF and text extraction tasks (LLM inference) |
 
@@ -388,8 +388,8 @@ In Docker mode, BookExtractor runs as a multi-service deployment with FastAPI, C
 
 | Property | Value |
 |---|---|
-| Image | `bookextractor:latest` |
-| Command | `bookextractor worker --queue default_queue --concurrency 8` |
+| Image | `metaextractor:latest` |
+| Command | `metaextractor worker --queue default_queue --concurrency 8` |
 | GPU | No |
 | Purpose | Processes image extraction tasks (EXIF only, no LLM) |
 
@@ -419,7 +419,7 @@ models:/models                              ← Named volume for models
 ./uploads:/app/uploads                      ← Persistent uploads directory
 ```
 
-All services share the same HuggingFace cache so models downloaded by `model-downloader` are visible to `bookextractor`, `worker-gpu`, and all vParse services.
+All services share the same HuggingFace cache so models downloaded by `model-downloader` are visible to `metaextractor`, `worker-gpu`, and all vParse services.
 
 ---
 
@@ -431,17 +431,17 @@ All services share the same HuggingFace cache so models downloaded by `model-dow
 |---|---|---|
 | `CELERY_BROKER_URL` | `redis://redis:6379/0` | Redis broker |
 | `CELERY_RESULT_BACKEND` | `redis://redis:6379/0` | Redis result backend |
-| `BOOKEXTRACTOR_UPLOAD_DIR` | `/app/uploads` | Upload directory inside container |
+| `METAEXTRACTOR_UPLOAD_DIR` | `/app/uploads` | Upload directory inside container |
 | `HF_HOME` | `/models/huggingface` | HuggingFace cache path |
 
 ### anyLLm (optional, for remote LLM)
 
 | Variable | Example | Purpose |
 |---|---|---|
-| `BOOKEXTRACTOR_LLM_MODEL` | `qwen2.5:7b` | Remote model name |
-| `BOOKEXTRACTOR_LLM_BASE_URL` | `http://ollama-host:11434/v1` | Remote endpoint |
-| `BOOKEXTRACTOR_LLM_API_KEY` | `ollama` | API key |
-| `BOOKEXTRACTOR_LLM_PROVIDER` | `openai` | Provider (default: openai) |
+| `METAEXTRACTOR_LLM_MODEL` | `qwen2.5:7b` | Remote model name |
+| `METAEXTRACTOR_LLM_BASE_URL` | `http://ollama-host:11434/v1` | Remote endpoint |
+| `METAEXTRACTOR_LLM_API_KEY` | `ollama` | API key |
+| `METAEXTRACTOR_LLM_PROVIDER` | `openai` | Provider (default: openai) |
 
 ### Local vLLM (fallback when anyLLm not configured)
 
@@ -465,7 +465,7 @@ All services share the same HuggingFace cache so models downloaded by `model-dow
 ```
 Client → POST /extract/async (multipart/form-data)
     │
-    ▼ bookextractor (FastAPI)
+    ▼ metaextractor (FastAPI)
     │   1. Validate file extension
     │   2. Save to /app/uploads/{uuid}_{filename}
     │   3. extract_pdf_task.delay(save_path, lang="en")
@@ -503,7 +503,7 @@ Client → POST /extract/async (multipart/form-data)
 ```
 Client → POST /extract/async
     │
-    ▼ bookextractor (FastAPI)
+    ▼ metaextractor (FastAPI)
     │   1. Save to /app/uploads/{uuid}_{filename}
     │   2. extract_text_task.delay(save_path, lang="en")
     │      └── Redis broker queues to vlm_queue
@@ -530,7 +530,7 @@ Client → POST /extract/async
 ```
 Client → POST /extract/async
     │
-    ▼ bookextractor (FastAPI)
+    ▼ metaextractor (FastAPI)
     │   1. Save to /app/uploads/{uuid}_{filename}
     │   2. extract_text_task.delay(save_path, lang="en")
     │      └── Redis broker queues to vlm_queue
@@ -552,7 +552,7 @@ Client → POST /extract/async
 ```
 Client → POST /extract/async (use_vlm=false by default)
     │
-    ▼ bookextractor (FastAPI)
+    ▼ metaextractor (FastAPI)
     │   1. Save to /app/uploads/{uuid}_{filename}
     │   2. extract_image_task.apply_async(queue="default_queue")
     │      └── Redis broker queues to default_queue
@@ -575,7 +575,7 @@ Client → POST /extract/async (use_vlm=false by default)
 ```
 Client → POST /extract/async (use_vlm=true)
     │
-    ▼ bookextractor (FastAPI)
+    ▼ metaextractor (FastAPI)
     │   1. Save to /app/uploads/{uuid}_{filename}
     │   2. extract_image_task.apply_async(queue="vlm_queue")
     │      └── Redis broker queues to vlm_queue
@@ -598,7 +598,7 @@ Client → POST /extract/async (use_vlm=true)
 ```
 Client → POST /extract (multipart/form-data)
     │
-    ▼ bookextractor (FastAPI)
+    ▼ metaextractor (FastAPI)
     │   1. Validate: only images supported for sync
     │   2. Save to temp directory (auto-cleanup)
     │   3. get_vision_pipeline() → ExtractionPipeline(load_vlm=False)
@@ -649,7 +649,7 @@ docker compose --profile hybrid up -d
 ### View logs
 
 ```bash
-docker compose logs -f bookextractor
+docker compose logs -f metaextractor
 docker compose logs -f worker-gpu
 docker compose logs -f worker-cpu
 ```
@@ -687,9 +687,9 @@ docker compose down -v
 
 When `.env` contains:
 ```env
-BOOKEXTRACTOR_LLM_MODEL=qwen2.5:7b
-BOOKEXTRACTOR_LLM_BASE_URL=http://ollama-host:11434/v1
-BOOKEXTRACTOR_LLM_API_KEY=ollama
+METAEXTRACTOR_LLM_MODEL=qwen2.5:7b
+METAEXTRACTOR_LLM_BASE_URL=http://ollama-host:11434/v1
+METAEXTRACTOR_LLM_API_KEY=ollama
 ```
 
 ### What Changes
@@ -707,10 +707,10 @@ BOOKEXTRACTOR_LLM_API_KEY=ollama
 ```yaml
 # docker-compose.yml — GPU-free setup
 services:
-  bookextractor:
+  metaextractor:
     build: .
     ports: ["8000:8000"]
-    env_file: .env  # Contains BOOKEXTRACTOR_LLM_* vars
+    env_file: .env  # Contains METAEXTRACTOR_LLM_* vars
     # No GPU, no model-downloader needed
 
   redis:
@@ -718,7 +718,7 @@ services:
 
   worker-cpu:
     build: .
-    command: bookextractor worker --queue default_queue --concurrency 8
+    command: metaextractor worker --queue default_queue --concurrency 8
     env_file: .env
     # Processes images (EXIF only) — no LLM needed
 ```

@@ -253,14 +253,14 @@ POST /extract/async
 | Variable                      | Description                        | Default                            |
 | ----------------------------- | ---------------------------------- | ---------------------------------- |
 | `VPARSE_API_URL`              | VParse API endpoint                | `http://localhost:8000/file_parse` |
-| `BOOKEXTRACTOR_LLM_MODEL`     | Remote model identifier            | _(unset — uses local vLLM)_        |
-| `BOOKEXTRACTOR_LLM_BASE_URL`  | Remote API base URL                | _(unset)_                          |
-| `BOOKEXTRACTOR_LLM_API_KEY`   | Remote API key                     | _(unset)_                          |
-| `BOOKEXTRACTOR_LLM_PROVIDER`  | anyLLM provider name               | `openai`                           |
+| `METAEXTRACTOR_LLM_MODEL`     | Remote model identifier            | _(unset — uses local vLLM)_        |
+| `METAEXTRACTOR_LLM_BASE_URL`  | Remote API base URL                | _(unset)_                          |
+| `METAEXTRACTOR_LLM_API_KEY`   | Remote API key                     | _(unset)_                          |
+| `METAEXTRACTOR_LLM_PROVIDER`  | anyLLM provider name               | `openai`                           |
 | `VLLM_MODEL_ID`               | HuggingFace model ID               | `Qwen/Qwen2.5-VL-7B-Instruct`      |
 | `CELERY_BROKER_URL`           | Redis broker URL                   | `redis://localhost:6379/0`         |
 | `CELERY_RESULT_BACKEND`       | Redis result backend               | `redis://localhost:6379/0`         |
-| `BOOKEXTRACTOR_UPLOAD_DIR`    | Upload directory                   | `uploads`                          |
+| `METAEXTRACTOR_UPLOAD_DIR`    | Upload directory                   | `uploads`                          |
 | `VLLM_DEVICE`                 | Target device: cuda, tpu, mps, cpu | Auto-detected                      |
 | `VLLM_DTYPE`                  | Model precision                    | Auto-optimized                     |
 | `VLLM_GPU_MEMORY_UTILIZATION` | GPU memory fraction (0.0-1.0)      | Auto-optimized                     |
@@ -271,7 +271,7 @@ POST /extract/async
 | Flag | Values | Purpose |
 | ---- | ------ | ------- |
 | `--backend` / `-b` | `auto` (default) | Env-driven: remote vars set → anyLLM, else → vLLM |
-| | `remote` | Force anyLLM (requires `BOOKEXTRACTOR_LLM_*` vars) |
+| | `remote` | Force anyLLM (requires `METAEXTRACTOR_LLM_*` vars) |
 | | `local` | Force local vLLM (ignores remote env vars) |
 
 ---

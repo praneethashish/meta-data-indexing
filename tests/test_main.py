@@ -9,7 +9,7 @@ try:
 except ImportError:
     huggingface_hub = None  # type: ignore
 
-from bookextractor.main import app, get_vision_pipeline
+from metaextractor.main import app, get_vision_pipeline
 
 
 @pytest.fixture
@@ -152,7 +152,7 @@ def test_extract_no_filename_returns_400(test_client):
 def test_cli_pdf_routing(tmp_path):
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     input_file = tmp_path / "test.pdf"
@@ -162,7 +162,7 @@ def test_cli_pdf_routing(tmp_path):
     mock_pipeline = MagicMock()
     mock_pipeline.process_pdf = AsyncMock(return_value={"book_metadata": {"title": "Test"}})
 
-    with patch("bookextractor.main.ExtractionPipeline", return_value=mock_pipeline):
+    with patch("metaextractor.main.ExtractionPipeline", return_value=mock_pipeline):
         result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file)])
 
         assert result.exit_code == 0
@@ -173,7 +173,7 @@ def test_cli_pdf_routing(tmp_path):
 def test_cli_image_routing(tmp_path):
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     input_file = tmp_path / "test.jpg"
@@ -183,7 +183,7 @@ def test_cli_image_routing(tmp_path):
     mock_pipeline = MagicMock()
     mock_pipeline.process_image = AsyncMock(return_value={"image_metadata": {"width": 100}})
 
-    with patch("bookextractor.main.ExtractionPipeline", return_value=mock_pipeline):
+    with patch("metaextractor.main.ExtractionPipeline", return_value=mock_pipeline):
         result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file)])
 
         assert result.exit_code == 0
@@ -193,7 +193,7 @@ def test_cli_image_routing(tmp_path):
 def test_cli_text_file_routing(tmp_path):
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     input_file = tmp_path / "test.md"
@@ -203,7 +203,7 @@ def test_cli_text_file_routing(tmp_path):
     mock_pipeline = MagicMock()
     mock_pipeline.process_text_file = AsyncMock(return_value={"book_metadata": {"title": "Test"}})
 
-    with patch("bookextractor.main.ExtractionPipeline", return_value=mock_pipeline):
+    with patch("metaextractor.main.ExtractionPipeline", return_value=mock_pipeline):
         result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file)])
 
         assert result.exit_code == 0
@@ -213,7 +213,7 @@ def test_cli_text_file_routing(tmp_path):
 def test_cli_missing_arguments():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
 
@@ -225,7 +225,7 @@ def test_cli_missing_arguments():
 def test_cli_extract_command_pdf_with_lang(tmp_path):
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     input_file = tmp_path / "test.pdf"
@@ -235,7 +235,7 @@ def test_cli_extract_command_pdf_with_lang(tmp_path):
     mock_pipeline = MagicMock()
     mock_pipeline.process_pdf = AsyncMock(return_value={"book_metadata": {"title": "Test"}})
 
-    with patch("bookextractor.main.ExtractionPipeline", return_value=mock_pipeline):
+    with patch("metaextractor.main.ExtractionPipeline", return_value=mock_pipeline):
         result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file), "--lang", "te"])
 
         assert result.exit_code == 0, f"Exit code was {result.exit_code}, output: {result.output}"
@@ -244,10 +244,10 @@ def test_cli_extract_command_pdf_with_lang(tmp_path):
 
 
 def test_get_vision_pipeline_returns_pipeline():
-    from bookextractor.main import get_vision_pipeline
+    from metaextractor.main import get_vision_pipeline
 
     get_vision_pipeline.cache_clear()
-    with patch("bookextractor.main.ExtractionPipeline") as mock_class:
+    with patch("metaextractor.main.ExtractionPipeline") as mock_class:
         mock_class.return_value = MagicMock()
         pipeline = get_vision_pipeline()
         mock_class.assert_called_once_with(load_vlm=False)
@@ -257,10 +257,10 @@ def test_get_vision_pipeline_returns_pipeline():
 
 
 def test_get_vision_pipeline_is_cached():
-    from bookextractor.main import get_vision_pipeline
+    from metaextractor.main import get_vision_pipeline
 
     get_vision_pipeline.cache_clear()
-    with patch("bookextractor.main.ExtractionPipeline") as mock_class:
+    with patch("metaextractor.main.ExtractionPipeline") as mock_class:
         mock_class.return_value = MagicMock(name="pipeline_instance")
         p1 = get_vision_pipeline()
         p2 = get_vision_pipeline()
@@ -273,14 +273,14 @@ def test_get_vision_pipeline_is_cached():
 def test_cli_unsupported_file_type_hits_else(tmp_path):
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     input_file = tmp_path / "test.docx"
     input_file.write_text("content")
     output_file = tmp_path / "output.json"
 
-    with patch("bookextractor.main.ExtractionPipeline"):
+    with patch("metaextractor.main.ExtractionPipeline"):
         result = runner.invoke(cli_app, ["extract", str(input_file), str(output_file)])
         assert result.exit_code == 1
         assert "Unsupported file type" in result.output
@@ -289,11 +289,11 @@ def test_cli_unsupported_file_type_hits_else(tmp_path):
 def test_cli_api_command():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
 
-    with patch("bookextractor.main.uvicorn.run") as mock_run:
+    with patch("metaextractor.main.uvicorn.run") as mock_run:
         result = runner.invoke(cli_app, ["api", "--host", "127.0.0.1", "--port", "9001"])
 
         assert result.exit_code == 0, f"Exit code was {result.exit_code}, output: {result.output}"
@@ -306,7 +306,7 @@ def test_cli_api_command():
 def test_cli_api_mode():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     with patch("uvicorn.run") as mock_run:
@@ -321,13 +321,13 @@ def test_cli_api_mode():
 def test_model_list_shows_models():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     with (
-        patch("bookextractor.hardware.get_vllm_config") as mock_cfg,
-        patch("bookextractor.models_registry.is_model_cached", return_value=False),
-        patch("bookextractor.models_registry.get_cached_model_size", return_value=0),
+        patch("metaextractor.hardware.get_vllm_config") as mock_cfg,
+        patch("metaextractor.models_registry.is_model_cached", return_value=False),
+        patch("metaextractor.models_registry.get_cached_model_size", return_value=0),
     ):
         mock_cfg.return_value = {"detected_hardware": {"memory_gb": 16}}
         result = runner.invoke(cli_app, ["model", "list"])
@@ -340,7 +340,7 @@ def test_model_list_shows_models():
 def test_model_list_with_cached():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
 
@@ -348,9 +348,9 @@ def test_model_list_with_cached():
         return m == "Qwen/Qwen2.5-VL-7B-Instruct"
 
     with (
-        patch("bookextractor.hardware.get_vllm_config") as mock_cfg,
-        patch("bookextractor.models_registry.is_model_cached", side_effect=is_cached),
-        patch("bookextractor.models_registry.get_cached_model_size", return_value=8 * 1024**3),
+        patch("metaextractor.hardware.get_vllm_config") as mock_cfg,
+        patch("metaextractor.models_registry.is_model_cached", side_effect=is_cached),
+        patch("metaextractor.models_registry.get_cached_model_size", return_value=8 * 1024**3),
     ):
         mock_cfg.return_value = {"detected_hardware": {"memory_gb": 16}}
         result = runner.invoke(cli_app, ["model", "list"])
@@ -360,10 +360,10 @@ def test_model_list_with_cached():
 def test_model_cache_empty():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
-    with patch("bookextractor.models_registry.get_cached_models", return_value=[]):
+    with patch("metaextractor.models_registry.get_cached_models", return_value=[]):
         result = runner.invoke(cli_app, ["model", "cache"])
         assert result.exit_code == 0
         assert "No models cached" in result.output
@@ -372,12 +372,12 @@ def test_model_cache_empty():
 def test_model_cache_with_data():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     with (
-        patch("bookextractor.models_registry.get_cached_models", return_value=["Qwen/Qwen2.5-VL-7B-Instruct"]),
-        patch("bookextractor.models_registry.get_cached_model_size", return_value=8 * 1024**3),
+        patch("metaextractor.models_registry.get_cached_models", return_value=["Qwen/Qwen2.5-VL-7B-Instruct"]),
+        patch("metaextractor.models_registry.get_cached_model_size", return_value=8 * 1024**3),
     ):
         result = runner.invoke(cli_app, ["model", "cache"])
         assert result.exit_code == 0
@@ -387,12 +387,12 @@ def test_model_cache_with_data():
 def test_model_remove_no_match():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     with (
-        patch("bookextractor.models_registry.find_model_by_query", return_value=[]),
-        patch("bookextractor.models_registry.get_cached_models", return_value=[]),
+        patch("metaextractor.models_registry.find_model_by_query", return_value=[]),
+        patch("metaextractor.models_registry.get_cached_models", return_value=[]),
     ):
         result = runner.invoke(cli_app, ["model", "remove", "nonexistent"])
         assert result.exit_code == 1
@@ -402,13 +402,13 @@ def test_model_remove_no_match():
 def test_model_remove_single_match():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     mock_match = [{"id": "testorg/testmodel"}]
     with (
-        patch("bookextractor.models_registry.find_model_by_query", return_value=mock_match),
-        patch("bookextractor.models_registry.remove_model_from_cache", return_value=True),
+        patch("metaextractor.models_registry.find_model_by_query", return_value=mock_match),
+        patch("metaextractor.models_registry.remove_model_from_cache", return_value=True),
     ):
         result = runner.invoke(cli_app, ["model", "remove", "testmodel"])
         assert result.exit_code == 0
@@ -418,13 +418,13 @@ def test_model_remove_single_match():
 def test_model_remove_not_cached():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     mock_match = [{"id": "testorg/testmodel"}]
     with (
-        patch("bookextractor.models_registry.find_model_by_query", return_value=mock_match),
-        patch("bookextractor.models_registry.remove_model_from_cache", return_value=False),
+        patch("metaextractor.models_registry.find_model_by_query", return_value=mock_match),
+        patch("metaextractor.models_registry.remove_model_from_cache", return_value=False),
     ):
         result = runner.invoke(cli_app, ["model", "remove", "testmodel"])
         assert result.exit_code == 0
@@ -434,14 +434,14 @@ def test_model_remove_not_cached():
 def test_model_remove_multiple_matches():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     mock_matches = [{"id": "google/gemma-3-27b-it"}, {"id": "google/gemma-4-31b-it"}]
     with (
-        patch("bookextractor.models_registry.find_model_by_query", return_value=mock_matches),
+        patch("metaextractor.models_registry.find_model_by_query", return_value=mock_matches),
         patch("questionary.select") as mock_select,
-        patch("bookextractor.models_registry.remove_model_from_cache", return_value=True),
+        patch("metaextractor.models_registry.remove_model_from_cache", return_value=True),
     ):
         mock_select.return_value.ask.return_value = "google/gemma-3-27b-it"
         result = runner.invoke(cli_app, ["model", "remove", "gemma"])
@@ -453,11 +453,11 @@ def test_model_remove_multiple_matches():
 def test_model_download_with_selection():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     with (
-        patch("bookextractor.models_registry.is_model_cached", return_value=False),
+        patch("metaextractor.models_registry.is_model_cached", return_value=False),
         patch("questionary.checkbox") as mock_checkbox,
         patch("huggingface_hub.snapshot_download") as mock_download,
     ):
@@ -471,11 +471,11 @@ def test_model_download_with_selection():
 def test_model_download_already_cached():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     with (
-        patch("bookextractor.models_registry.is_model_cached", return_value=True),
+        patch("metaextractor.models_registry.is_model_cached", return_value=True),
         patch("questionary.checkbox") as mock_checkbox,
         patch("huggingface_hub.snapshot_download") as mock_download,
     ):
@@ -489,7 +489,7 @@ def test_model_download_already_cached():
 def test_model_download_no_selection():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
     with (
@@ -504,10 +504,10 @@ def test_model_download_no_selection():
 def test_hardware_info_command():
     from typer.testing import CliRunner
 
-    from bookextractor.main import cli_app
+    from metaextractor.main import cli_app
 
     runner = CliRunner()
-    with patch("bookextractor.hardware.get_vllm_config") as mock_cfg:
+    with patch("metaextractor.hardware.get_vllm_config") as mock_cfg:
         mock_cfg.return_value = {
             "detected_hardware": {
                 "device": "cuda",

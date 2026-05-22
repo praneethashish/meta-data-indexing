@@ -1,6 +1,6 @@
 import pytest
 
-from bookextractor.vparse_client import parse_pdf_via_vparse
+from metaextractor.vparse_client import parse_pdf_via_vparse
 
 
 @pytest.fixture

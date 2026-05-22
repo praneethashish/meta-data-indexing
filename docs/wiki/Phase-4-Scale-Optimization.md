@@ -138,22 +138,22 @@ async def extract_with_cache(file_path: str, options: dict):
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: bookextractor-api
+  name: metaextractor-api
   labels:
-    app: bookextractor
+    app: metaextractor
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: bookextractor
+      app: metaextractor
   template:
     metadata:
       labels:
-        app: bookextractor
+        app: metaextractor
     spec:
       containers:
         - name: api
-          image: bookextractor:latest
+          image: metaextractor:latest
           ports:
             - containerPort: 8000
           resources:
@@ -167,18 +167,18 @@ spec:
             - name: CELERY_BROKER_URL
               valueFrom:
                 secretKeyRef:
-                  name: bookextractor-secrets
+                  name: metaextractor-secrets
                   key: celery-broker-url
             - name: VPARSE_API_URL
-              value: "http://bookextractor-vparse:8000"
+              value: "http://metaextractor-vparse:8000"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: bookextractor-api
+  name: metaextractor-api
 spec:
   selector:
-    app: bookextractor
+    app: metaextractor
   ports:
     - port: 80
       targetPort: 8000
@@ -192,24 +192,24 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: bookextractor-vlm-worker
+  name: metaextractor-vlm-worker
   labels:
-    app: bookextractor-vlm
+    app: metaextractor-vlm
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: bookextractor-vlm
+      app: metaextractor-vlm
   template:
     metadata:
       labels:
-        app: bookextractor-vlm
+        app: metaextractor-vlm
     spec:
       containers:
         - name: worker
-          image: bookextractor:latest
+          image: metaextractor:latest
           command:
-            ["celery", "-A", "bookextractor.tasks", "worker", "-Q", "vlm_queue"]
+            ["celery", "-A", "metaextractor.tasks", "worker", "-Q", "vlm_queue"]
           resources:
             limits:
               memory: "16Gi"
@@ -224,10 +224,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: bookextractor-vparse
+  name: metaextractor-vparse
 spec:
   selector:
-    app: bookextractor-vparse
+    app: metaextractor-vparse
   ports:
     - port: 8000
       targetPort: 8000
@@ -240,12 +240,12 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: bookextractor-api-hpa
+  name: metaextractor-api-hpa
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: bookextractor-api
+    name: metaextractor-api
   minReplicas: 3
   maxReplicas: 10
   metrics:

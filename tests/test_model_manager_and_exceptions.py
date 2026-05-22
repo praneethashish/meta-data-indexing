@@ -2,7 +2,7 @@ import os
 import threading
 from unittest.mock import MagicMock, patch
 
-from bookextractor.exceptions import ModelNotAvailableError, ParsingError
+from metaextractor.exceptions import ModelNotAvailableError, ParsingError
 
 
 def test_model_not_available_error_default_message():
@@ -41,7 +41,7 @@ def test_exceptions_inherit_from_base():
 
 
 def test_model_manager_singleton():
-    from bookextractor.model_manager import ModelManager
+    from metaextractor.model_manager import ModelManager
 
     ModelManager.reset()
     manager1 = ModelManager.get_instance()
@@ -51,7 +51,7 @@ def test_model_manager_singleton():
 
 
 def test_model_manager_not_loaded_initially():
-    from bookextractor.model_manager import ModelManager
+    from metaextractor.model_manager import ModelManager
 
     ModelManager.reset()
     manager = ModelManager()
@@ -60,7 +60,7 @@ def test_model_manager_not_loaded_initially():
 
 
 def test_model_manager_is_loaded_with_model():
-    from bookextractor.model_manager import ModelManager
+    from metaextractor.model_manager import ModelManager
 
     manager = ModelManager()
     manager._model = MagicMock()
@@ -69,7 +69,7 @@ def test_model_manager_is_loaded_with_model():
 
 
 def test_model_manager_model_id():
-    from bookextractor.model_manager import ModelManager
+    from metaextractor.model_manager import ModelManager
 
     manager = ModelManager()
     assert manager.model_id is None
@@ -78,7 +78,7 @@ def test_model_manager_model_id():
 
 
 def test_model_manager_thread_safety():
-    from bookextractor.model_manager import ModelManager
+    from metaextractor.model_manager import ModelManager
 
     ModelManager.reset()
     results = []
@@ -106,7 +106,7 @@ def test_model_manager_thread_safety():
 
 def test_vllm_target_device_env_guard(monkeypatch):
 
-    from bookextractor.model_manager import ModelManager
+    from metaextractor.model_manager import ModelManager
 
     ModelManager.reset()
 
@@ -121,8 +121,8 @@ def test_vllm_target_device_env_guard(monkeypatch):
             pass
 
     with (
-        patch("bookextractor.hardware.get_vllm_config", return_value=config),
-        patch("bookextractor.model_manager.LLM", FakeLLM),
+        patch("metaextractor.hardware.get_vllm_config", return_value=config),
+        patch("metaextractor.model_manager.LLM", FakeLLM),
     ):
         manager = ModelManager()
         manager.get_or_create(model_id="test-model", max_model_len=4096)

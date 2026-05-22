@@ -1,5 +1,5 @@
-from bookextractor.config import settings
-from bookextractor.content_detector import detect_content_type
+from metaextractor.config import settings
+from metaextractor.content_detector import detect_content_type
 
 
 def test_detect_magazine_telugu_monthly():

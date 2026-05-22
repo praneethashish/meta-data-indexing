@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from bookextractor.models_registry import (
+from metaextractor.models_registry import (
     AVAILABLE_MODELS,
     cache_dir_for_model,
     find_model_by_query,
@@ -41,7 +41,7 @@ class TestModelsRegistry:
     @pytest.fixture
     def fake_cache(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            import bookextractor.models_registry as mr
+            import metaextractor.models_registry as mr
 
             original = mr.HF_CACHE_DIR
             mr.HF_CACHE_DIR = Path(tmpdir)
@@ -62,21 +62,21 @@ class TestModelsRegistry:
         assert is_model_cached(model_id) is True
 
     def test_get_cached_models_with_cache(self, fake_cache):
-        from bookextractor.models_registry import get_cached_models as gcm
+        from metaextractor.models_registry import get_cached_models as gcm
 
         model_id, _ = fake_cache
         cached = gcm()
         assert model_id in cached
 
     def test_get_cached_model_size(self, fake_cache):
-        from bookextractor.models_registry import get_cached_model_size as gcms
+        from metaextractor.models_registry import get_cached_model_size as gcms
 
         model_id, _ = fake_cache
         size = gcms(model_id)
         assert size > 0
 
     def test_remove_model_from_cache(self, fake_cache):
-        from bookextractor.models_registry import remove_model_from_cache as rmfc
+        from metaextractor.models_registry import remove_model_from_cache as rmfc
 
         model_id, _ = fake_cache
         assert rmfc(model_id) is True
@@ -126,7 +126,7 @@ class TestModelManagerAutoDetect:
     def test_get_or_create_auto_detects_when_no_model_id(self):
         from unittest.mock import patch
 
-        from bookextractor.model_manager import ModelManager
+        from metaextractor.model_manager import ModelManager
 
         ModelManager.reset()
 
@@ -144,9 +144,9 @@ class TestModelManagerAutoDetect:
         }
 
         with (
-            patch("bookextractor.hardware.get_vllm_config", return_value=mock_config),
-            patch("bookextractor.model_manager.LLM", FakeLLM),
-            patch("bookextractor.models_registry.get_cached_models", return_value=[]),
+            patch("metaextractor.hardware.get_vllm_config", return_value=mock_config),
+            patch("metaextractor.model_manager.LLM", FakeLLM),
+            patch("metaextractor.models_registry.get_cached_models", return_value=[]),
         ):
             manager = ModelManager.get_instance()
             manager.get_or_create(model_id=None, max_model_len=4096)
