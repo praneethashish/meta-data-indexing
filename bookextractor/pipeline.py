@@ -29,11 +29,18 @@ logger = logging.getLogger(__name__)
 
 
 class ExtractionPipeline:
-    def __init__(self, model_id: str | None = None, max_model_len: int = 4096, load_vlm: bool = True):
+    def __init__(
+        self,
+        model_id: str | None = None,
+        max_model_len: int = 4096,
+        load_vlm: bool = True,
+        llm_backend: str = "auto",
+    ):
         self.llm_client: BaseLLMClient | None = None
         self.vision_client: ModelClient | None = None
         self._model_id = model_id
         self._max_model_len = max_model_len
+        self._llm_backend = llm_backend
 
         if load_vlm:
             try:
@@ -224,7 +231,7 @@ class ExtractionPipeline:
 
     def ensure_llm_client(self) -> None:
         if self.llm_client is None:
-            self.llm_client = create_llm_client(model_id=self._model_id)
+            self.llm_client = create_llm_client(model_id=self._model_id, backend=self._llm_backend)
 
     def extract_magazine_semantic_fields(self, text: str, lang: str = "te") -> dict[str, Any]:
         self.ensure_llm_client()

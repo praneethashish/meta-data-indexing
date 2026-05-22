@@ -33,15 +33,15 @@
 │              ┌────────────┼────────────┐                              │
 │              ▼            ▼            ▼                              │
 │  ┌──────────────┐ ┌────────────┐ ┌──────────────┐                    │
-│  │  VLMClient   │ │ validation │ │ external_api │                    │
-│  │  (vLLM LLM)  │ │  (ISBN)    │ │ (OpenLibrary)│                    │
-│  │  Singleton   │ │            │ │              │                    │
+│  │  llm_client  │ │ validation │ │ external_api │                    │
+│  │  (lazy init) │ │  (ISBN)    │ │ (OpenLibrary)│                    │
+│  │  AnyLLM or   │ │            │ │              │                    │
+│  │  LocalVLLM   │ │            │ │              │                    │
 │  └──────────────┘ └────────────┘ └──────────────┘                    │
-│                                                                       │
 │  ┌──────────────┐ ┌────────────┐ ┌──────────────┐ ┌───────────────┐ │
-│  │ hardware.py  │ │ models.py  │ │ models_reg.  │ │ vparse_client │ │
-│  │ GPU detect   │ │ Pydantic   │ │ HF cache     │ │ HTTP to vParse│ │
-│  │ vLLM config  │ │ Data models│ │ scanner      │ │ OCR API       │ │
+│  │ vision_client│ │ models.py  │ │ models_reg.  │ │ vparse_client │ │
+│  │ (ModelClient)│ │ Pydantic   │ │ HF cache     │ │ HTTP to vParse│ │
+│  │ (GPU, vLLM)  │ │ Data models│ │ scanner      │ │ OCR API       │ │
 │  └──────────────┘ └────────────┘ └──────────────┘ └───────────────┘ │
 └─────────────────────────────────────────────────────────────────────┘
           │                                                 │
@@ -69,11 +69,16 @@
 │                        EXTERNAL SERVICES                              │
 │                                                                       │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────────────────────┐  │
-│  │  vParse API  │  │  HuggingFace │  │  Open Library API          │  │
-│  │  (mineru)    │  │  Model Cache │  │  (ISBN validation)         │  │
-│  │  OCR engine  │  │  ~/.cache/   │  │  https://openlibrary.org   │  │
+│  │  vParse API  │  │  HuggingFace │  │  Remote LLM (anyLLM)       │  │
+│  │  (mineru)    │  │  Model Cache │  │  (Ollama, HF, OpenAI)      │  │
+│  │  OCR engine  │  │  ~/.cache/   │  │  HTTP POST /v1/chat        │  │
 │  │  port 8000   │  │  huggingface │  │                            │  │
 │  └──────────────┘  └──────────────┘  └────────────────────────────┘  │
+│  ┌──────────────────────────────────┐                                │
+│  │  Open Library API                │                                │
+│  │  (ISBN validation)               │                                │
+│  │  https://openlibrary.org         │                                │
+│  └──────────────────────────────────┘                                │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -85,9 +90,10 @@
 
 | Module                  | File                        | Responsibility                   | Dependencies                                        |
 | ----------------------- | --------------------------- | -------------------------------- | --------------------------------------------------- |
-| **Format Router**       | `main.py`                   | Route files by extension         | pipeline, tasks                                     |
-| **Extraction Pipeline** | `pipeline.py`               | Orchestrate extraction           | vparse_client, vlm_client, external_api, validation |
-| **VLM Client**          | `vlm_client.py`             | vLLM singleton wrapper           | vllm, hardware                                      |
+| **Format Router**       | `main.py`                   | Route files by extension, LLM backend selection | pipeline, tasks, llm_clients |
+| **Extraction Pipeline** | `pipeline.py`               | Orchestrate extraction           | vparse_client, llm_clients, model_client, external_api, validation |
+| **LLM Clients**         | `llm_clients.py`            | LLM abstraction (remote/local)   | anyllm, model_client, model_manager                 |
+| **Model Client**        | `model_client.py`           | vLLM singleton wrapper           | vllm, hardware                                      |
 | **Image Utils**         | `image_utils.py`            | EXIF extraction                  | PIL, piexif                                         |
 | **Validation**          | `validation.py`             | ISBN validation                  | regex                                               |
 | **Hardware Detection**  | `hardware.py`               | GPU/CPU/TPU detection            | pynvml, torch, psutil                               |
@@ -220,7 +226,8 @@ POST /extract/async
 | **API**              | FastAPI                         | REST endpoints, async          |
 | **CLI**              | Typer                           | Command-line interface         |
 | **OCR**              | VParse (mineru-dots)            | PDF/document OCR               |
-| **LLM**              | Qwen2.5-VL, Qwen3-VL, Gemma 4   | Text semantic extraction       |
+| **LLM (Remote)**     | anyLLM                          | HTTP-based inference (Ollama, HF, OpenAI) |
+| **LLM (Local)**      | Qwen2.5-VL, Qwen3-VL, Gemma 4   | Text semantic extraction       |
 | **Inference Engine** | vLLM + PyTorch                  | GPU-accelerated LLM inference  |
 | **ISBN Lookup**      | OpenLibrary API                 | Book metadata                  |
 | **Tasks**            | Celery + Redis                  | Async processing               |
@@ -246,6 +253,10 @@ POST /extract/async
 | Variable                      | Description                        | Default                            |
 | ----------------------------- | ---------------------------------- | ---------------------------------- |
 | `VPARSE_API_URL`              | VParse API endpoint                | `http://localhost:8000/file_parse` |
+| `BOOKEXTRACTOR_LLM_MODEL`     | Remote model identifier            | _(unset — uses local vLLM)_        |
+| `BOOKEXTRACTOR_LLM_BASE_URL`  | Remote API base URL                | _(unset)_                          |
+| `BOOKEXTRACTOR_LLM_API_KEY`   | Remote API key                     | _(unset)_                          |
+| `BOOKEXTRACTOR_LLM_PROVIDER`  | anyLLM provider name               | `openai`                           |
 | `VLLM_MODEL_ID`               | HuggingFace model ID               | `Qwen/Qwen2.5-VL-7B-Instruct`      |
 | `CELERY_BROKER_URL`           | Redis broker URL                   | `redis://localhost:6379/0`         |
 | `CELERY_RESULT_BACKEND`       | Redis result backend               | `redis://localhost:6379/0`         |
@@ -254,6 +265,14 @@ POST /extract/async
 | `VLLM_DTYPE`                  | Model precision                    | Auto-optimized                     |
 | `VLLM_GPU_MEMORY_UTILIZATION` | GPU memory fraction (0.0-1.0)      | Auto-optimized                     |
 | `VLLM_TENSOR_PARALLEL_SIZE`   | Number of GPUs (or `auto`)         | Auto-optimized                     |
+
+### CLI Backend Flag
+
+| Flag | Values | Purpose |
+| ---- | ------ | ------- |
+| `--backend` / `-b` | `auto` (default) | Env-driven: remote vars set → anyLLM, else → vLLM |
+| | `remote` | Force anyLLM (requires `BOOKEXTRACTOR_LLM_*` vars) |
+| | `local` | Force local vLLM (ignores remote env vars) |
 
 ---
 
@@ -277,10 +296,12 @@ POST /extract/async
 
 - vParse OCR (external service)
 - EXIF extraction (PIL + piexif)
+- anyLLM remote inference (HTTP request, no local GPU)
 
 ### GPU-bound Operations
 
-- vLLM LLM inference (text semantic extraction)
+- vLLM local LLM inference (text semantic extraction, when `--backend local` or no remote config)
+- VLM image analysis (`describe_image()`, always requires local vLLM)
 
 ### Memory Considerations
 
@@ -300,12 +321,13 @@ POST /extract/async
 
 ### Queue Routing
 
-| File Type | Queue | Worker | LLM |
-|-----------|-------|--------|-----|
-| PDF | `vlm_queue` | worker-gpu | Yes |
-| Text/JSON/MD | `vlm_queue` | worker-gpu | Yes |
-| Images | `default_queue` | worker-cpu | No |
+| File Type | Queue | Worker | LLM | GPU Required |
+|-----------|-------|--------|-----|-------------|
+| PDF | `vlm_queue` | worker-gpu | Yes (anyLLM or vLLM) | Only if vLLM |
+| Text/JSON/MD | `vlm_queue` | worker-gpu | Yes (anyLLM or vLLM) | Only if vLLM |
+| Images | `default_queue` | worker-cpu | No | No |
+| Images (with VLM) | `vlm_queue` | worker-gpu | Vision only | Yes |
 
 ---
 
-_Last updated: Phase 3 (Celery + Redis) complete_
+_Last updated: Phase 4 (anyLLM integration, decoupled LLM/vision clients, --backend flag) complete_

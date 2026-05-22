@@ -27,6 +27,14 @@ class OCRLanguage(str, Enum):
     HINDI = "devanagari"
 
 
+class LLMBackend(str, Enum):
+    """LLM backend selection mode."""
+
+    AUTO = "auto"
+    REMOTE = "remote"
+    LOCAL = "local"
+
+
 app = FastAPI()
 cli_app = typer.Typer()
 
@@ -131,20 +139,44 @@ async def _extract_file(
     lang: OCRLanguage = OCRLanguage.ENGLISH,
     max_model_len: int = 4096,
     use_vlm: bool = False,
+    backend: LLMBackend = LLMBackend.AUTO,
 ) -> None:
     filename = input_file.lower()
     is_image = filename.endswith(settings.IMAGE_EXTENSIONS)
     needs_llm = (not is_image) or use_vlm
 
-    if needs_llm and has_partial_remote_llm_config():
-        print(
-            "Error: Incomplete remote LLM configuration. Set BOOKEXTRACTOR_LLM_MODEL, "
-            "BOOKEXTRACTOR_LLM_BASE_URL, and BOOKEXTRACTOR_LLM_API_KEY together, "
-            "or remove them to use the local vLLM fallback."
-        )
-        raise typer.Exit(code=1)
+    if backend == LLMBackend.LOCAL:
+        if needs_llm:
+            logger.info("Backend forced to local vLLM (ignoring remote env vars)")
+    elif backend == LLMBackend.REMOTE:
+        if has_partial_remote_llm_config():
+            print(
+                "Error: Incomplete remote LLM configuration. Set BOOKEXTRACTOR_LLM_MODEL, "
+                "BOOKEXTRACTOR_LLM_BASE_URL, and BOOKEXTRACTOR_LLM_API_KEY together."
+            )
+            raise typer.Exit(code=1)
+        if not has_partial_remote_llm_config() and not has_partial_remote_llm_config():
+            s = __import__("bookextractor.config", fromlist=["settings"]).settings
+            if not (s.BOOKEXTRACTOR_LLM_MODEL and s.BOOKEXTRACTOR_LLM_BASE_URL and s.BOOKEXTRACTOR_LLM_API_KEY):
+                print(
+                    "Error: --backend remote requires BOOKEXTRACTOR_LLM_MODEL, "
+                    "BOOKEXTRACTOR_LLM_BASE_URL, and BOOKEXTRACTOR_LLM_API_KEY to be set."
+                )
+                raise typer.Exit(code=1)
+    else:
+        if needs_llm and has_partial_remote_llm_config():
+            print(
+                "Error: Incomplete remote LLM configuration. Set BOOKEXTRACTOR_LLM_MODEL, "
+                "BOOKEXTRACTOR_LLM_BASE_URL, and BOOKEXTRACTOR_LLM_API_KEY together, "
+                "or remove them to use the local vLLM fallback."
+            )
+            raise typer.Exit(code=1)
 
-    p = ExtractionPipeline(max_model_len=max_model_len, load_vlm=(not is_image) or use_vlm)
+    p = ExtractionPipeline(
+        max_model_len=max_model_len,
+        load_vlm=(not is_image) or use_vlm,
+        llm_backend=backend.value,
+    )
 
     if filename.endswith(".pdf"):
         result = await p.process_pdf(input_file, benchmark=benchmark, lang=lang.value)
@@ -225,10 +257,22 @@ def extract_command(
         "--max-model-len",
         help="Maximum context length (reduce to save VRAM)",
     ),
+    backend: LLMBackend = typer.Option(  # noqa: B008
+        LLMBackend.AUTO,
+        "--backend",
+        "-b",
+        help="LLM backend: auto (env-driven), remote (force anyLLM), local (force vLLM)",
+    ),
 ) -> None:
     asyncio.run(
         _extract_file(
-            input_file, output_json, benchmark=benchmark, lang=lang, max_model_len=max_model_len, use_vlm=use_vlm
+            input_file,
+            output_json,
+            benchmark=benchmark,
+            lang=lang,
+            max_model_len=max_model_len,
+            use_vlm=use_vlm,
+            backend=backend,
         )
     )
 

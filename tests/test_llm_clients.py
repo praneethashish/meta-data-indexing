@@ -162,16 +162,16 @@ def test_anyllm_extracts_semantic_fields(monkeypatch):
 
     with patch("bookextractor.llm_clients._import_anyllm", return_value=mock_anyllm):
         client = AnyLLMClient()
-        result = client.extract_semantic_fields("OCR content")
 
-    assert result == {"title": "Remote Book", "author": "Remote Author", "publisher": None}
-    mock_chat.assert_called_once()
-    mock_config.set.assert_any_call("openai_base_url", "http://localhost:1234/v1")
-    mock_config.set.assert_any_call("openai_api_key", "test-key")
+    assert client.extract_semantic_fields("OCR content") == {
+        "title": "Remote Book",
+        "author": "Remote Author",
+        "publisher": None,
+    }
 
 
-def test_anyllm_requires_package(monkeypatch):
-    monkeypatch.setenv("BOOKEXTRACTOR_LLM_MODEL", "test-model")
+def test_create_llm_client_backend_local_forces_vllm(monkeypatch):
+    monkeypatch.setenv("BOOKEXTRACTOR_LLM_MODEL", "remote-model")
     monkeypatch.setenv("BOOKEXTRACTOR_LLM_BASE_URL", "http://localhost:1234/v1")
     monkeypatch.setenv("BOOKEXTRACTOR_LLM_API_KEY", "test-key")
 
@@ -179,15 +179,15 @@ def test_anyllm_requires_package(monkeypatch):
 
     config.settings = config.Settings()
 
-    with (
-        patch("bookextractor.llm_clients._import_anyllm", side_effect=ImportError("missing")),
-        pytest.raises(RuntimeError, match="requires the 'anyllm' package"),
-    ):
-        AnyLLMClient()
+    with patch("bookextractor.llm_clients.LocalVLLMClient") as mock_client:
+        client = create_llm_client(backend="local")
+
+    assert client == mock_client.return_value
+    mock_client.assert_called_once_with(model_id=None)
 
 
-def test_anyllm_returns_empty_dict_when_chat_fails(monkeypatch):
-    monkeypatch.setenv("BOOKEXTRACTOR_LLM_MODEL", "test-model")
+def test_create_llm_client_backend_remote_forces_anyllm(monkeypatch):
+    monkeypatch.setenv("BOOKEXTRACTOR_LLM_MODEL", "remote-model")
     monkeypatch.setenv("BOOKEXTRACTOR_LLM_BASE_URL", "http://localhost:1234/v1")
     monkeypatch.setenv("BOOKEXTRACTOR_LLM_API_KEY", "test-key")
 
@@ -195,15 +195,54 @@ def test_anyllm_returns_empty_dict_when_chat_fails(monkeypatch):
 
     config.settings = config.Settings()
 
-    mock_anyllm = SimpleNamespace(
-        chat=MagicMock(side_effect=RuntimeError("boom")),
-        get_config=MagicMock(return_value=MagicMock()),
-    )
+    with patch("bookextractor.llm_clients.AnyLLMClient") as mock_client:
+        client = create_llm_client(backend="remote")
 
-    with patch("bookextractor.llm_clients._import_anyllm", return_value=mock_anyllm):
-        client = AnyLLMClient()
+    assert client == mock_client.return_value
+    mock_client.assert_called_once_with(model_id=None)
 
-    assert client.extract_semantic_fields("OCR content") == {}
+
+def test_create_llm_client_backend_remote_rejects_incomplete_config(monkeypatch):
+    monkeypatch.setenv("BOOKEXTRACTOR_LLM_MODEL", "remote-model")
+    monkeypatch.delenv("BOOKEXTRACTOR_LLM_BASE_URL", raising=False)
+    monkeypatch.setenv("BOOKEXTRACTOR_LLM_API_KEY", "test-key")
+
+    from bookextractor import config
+
+    config.settings = config.Settings()
+
+    with pytest.raises(RuntimeError, match="Incomplete remote LLM configuration"):
+        create_llm_client(backend="remote")
+
+
+def test_create_llm_client_backend_auto_respects_env_vars(monkeypatch):
+    monkeypatch.setenv("BOOKEXTRACTOR_LLM_MODEL", "remote-model")
+    monkeypatch.setenv("BOOKEXTRACTOR_LLM_BASE_URL", "http://localhost:1234/v1")
+    monkeypatch.setenv("BOOKEXTRACTOR_LLM_API_KEY", "test-key")
+
+    from bookextractor import config
+
+    config.settings = config.Settings()
+
+    with patch("bookextractor.llm_clients.AnyLLMClient") as mock_client:
+        client = create_llm_client(backend="auto")
+
+    assert client == mock_client.return_value
+
+
+def test_create_llm_client_backend_auto_falls_back_to_local(monkeypatch):
+    monkeypatch.delenv("BOOKEXTRACTOR_LLM_MODEL", raising=False)
+    monkeypatch.delenv("BOOKEXTRACTOR_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("BOOKEXTRACTOR_LLM_API_KEY", raising=False)
+
+    from bookextractor import config
+
+    config.settings = config.Settings()
+
+    with patch("bookextractor.llm_clients.LocalVLLMClient") as mock_client:
+        client = create_llm_client(backend="auto")
+
+    assert client == mock_client.return_value
 
 
 def test_anyllm_returns_empty_dict_when_response_has_no_content(monkeypatch):

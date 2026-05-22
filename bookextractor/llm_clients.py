@@ -89,6 +89,7 @@ class AnyLLMClient(BaseLLMClient):
         self._model = model
         self._anyllm = anyllm
         self._provider = s.BOOKEXTRACTOR_LLM_PROVIDER or "openai"
+        self._prefixed_model = f"{self._provider}/{self._model}"
         self._configure_anyllm(base_url=base_url, api_key=api_key)
 
     def _configure_anyllm(self, base_url: str, api_key: str) -> None:
@@ -112,8 +113,7 @@ class AnyLLMClient(BaseLLMClient):
         try:
             response = self._anyllm.chat(
                 prompt,
-                provider=self._provider,
-                model=self._model,
+                model=self._prefixed_model,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stop=["```"],
@@ -143,12 +143,17 @@ def has_partial_remote_llm_config() -> bool:
     return any(values) and not all(values)
 
 
-def create_llm_client(model_id: str | None = None) -> BaseLLMClient:
+def create_llm_client(model_id: str | None = None, backend: str = "auto") -> BaseLLMClient:
+    if backend == "local":
+        return LocalVLLMClient(model_id=model_id)
+
     if has_partial_remote_llm_config():
         raise RuntimeError(
             "Incomplete remote LLM configuration. Set BOOKEXTRACTOR_LLM_MODEL, "
             "BOOKEXTRACTOR_LLM_BASE_URL, and BOOKEXTRACTOR_LLM_API_KEY together."
         )
-    if has_remote_llm_config():
+
+    if backend == "remote" or has_remote_llm_config():
         return AnyLLMClient(model_id=model_id)
+
     return LocalVLLMClient(model_id=model_id)
