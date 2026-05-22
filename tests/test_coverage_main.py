@@ -3,7 +3,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from bookextractor.main import app, cli_app
+from metaextractor.main import app, cli_app
 
 runner = CliRunner()
 client = TestClient(app)
@@ -17,7 +17,7 @@ def test_hardware_info_command():
 
 def test_extract_unsupported_file(tmp_path):
     # Mock ModelClient to avoid actual initialization
-    with patch("bookextractor.pipeline.ModelClient.get_instance"):
+    with patch("metaextractor.pipeline.ModelClient.get_instance"):
         bad_file = tmp_path / "test.docx"
         bad_file.write_text("hello")
         result = runner.invoke(cli_app, ["extract", str(bad_file), "out.json"])
@@ -42,7 +42,7 @@ def test_api_extract_no_filename():
 
 
 def test_main_cli_api_flag():
-    with patch("bookextractor.main._run_api") as mock_run:
+    with patch("metaextractor.main._run_api") as mock_run:
         result = runner.invoke(cli_app, ["--api"])
         # If typer exits with 0 or 2, we just want to see if it was called
         assert mock_run.called or result.exit_code in (0, 2)

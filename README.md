@@ -1,15 +1,16 @@
-# BookExtractor
+# MetaExtractor
 
 A production-ready Python package for extracting structured metadata from scanned Telugu, Hindi, and English books, magazines, and images.
 
 ## Overview
 
-`bookextractor` uses a multi-stage pipeline combining vParse OCR, local VLM inference (vLLM), and rule-based validation to extract structured metadata from noisy, layout-agnostic scans. Supports both synchronous CLI and asynchronous API with Celery/Redis background processing.
+`metaextractor` uses a multi-stage pipeline combining vParse OCR, local VLM inference (vLLM), and rule-based validation to extract structured metadata from noisy, layout-agnostic scans. Supports both synchronous CLI and asynchronous API with Celery/Redis background processing.
 
 ## Key Features
 
 - **Multi-format support**: PDF, images (JPG, PNG, WebP, TIFF), text files (MD, JSON, TXT)
 - **vParse OCR integration**: Multilingual OCR via mineru-dots API (English, Telugu, Hindi)
+- **Flexible LLM backend**: Remote HTTP inference (Ollama, HuggingFace, OpenAI) via anyLLM — no GPU required for text extraction
 - **Local VLM inference**: Qwen2.5-VL, Qwen3-VL, Gemma 4, and more via vLLM — data never leaves your machine
 - **Async task queue**: Celery + Redis for background processing with GPU/CPU worker separation
 - **Auto hardware detection**: Optimizes vLLM config for NVIDIA GPU, TPU, Apple Silicon, or CPU
@@ -38,47 +39,56 @@ uv run pre-commit install
 
 ```bash
 # Extract metadata from a file
-uv run bookextractor extract input.pdf output.json
+uv run metaextractor extract input.pdf output.json
 
 # Specify OCR language
-uv run bookextractor extract input.pdf output.json --lang te
-uv run bookextractor extract input.pdf output.json --lang devanagari
+uv run metaextractor extract input.pdf output.json --lang te
+uv run metaextractor extract input.pdf output.json --lang devanagari
 
 # Benchmark mode (includes debug info)
-uv run bookextractor extract input.pdf output.json --benchmark
+uv run metaextractor extract input.pdf output.json --benchmark
 
 # Reduce VRAM usage
-uv run bookextractor extract input.pdf output.json --max-model-len 2048
+uv run metaextractor extract input.pdf output.json --max-model-len 2048
+
+# Force remote LLM (requires METAEXTRACTOR_LLM_* env vars)
+uv run metaextractor extract input.pdf output.json -b remote
+
+# Force local vLLM (ignores remote env vars)
+uv run metaextractor extract input.pdf output.json -b local
+
+# Enable VLM image analysis
+uv run metaextractor extract input.jpg output.json --vlm
 ```
 
 ### Model Management
 
 ```bash
 # List available models and cache status
-uv run bookextractor model list
+uv run metaextractor model list
 
 # Interactively download models
-uv run bookextractor model download
+uv run metaextractor model download
 
 # Remove a cached model
-uv run bookextractor model remove <model-id>
+uv run metaextractor model remove <model-id>
 
 # Show cache disk usage
-uv run bookextractor model cache
+uv run metaextractor model cache
 ```
 
 ### Hardware Detection
 
 ```bash
-uv run bookextractor hardware-info
+uv run metaextractor hardware-info
 ```
 
 ### API (FastAPI)
 
 ```bash
 # Start the web server
-uv run bookextractor api
-uv run bookextractor api --host 0.0.0.0 --port 8000
+uv run metaextractor api
+uv run metaextractor api --host 0.0.0.0 --port 8000
 ```
 
 | Endpoint | Method | Description |
@@ -94,8 +104,8 @@ uv run bookextractor api --host 0.0.0.0 --port 8000
 
 ```bash
 # Start a worker for a specific queue
-uv run bookextractor worker --queue vlm_queue --concurrency 2
-uv run bookextractor worker --queue default_queue --concurrency 8
+uv run metaextractor worker --queue vlm_queue --concurrency 2
+uv run metaextractor worker --queue default_queue --concurrency 8
 ```
 
 ## Docker
@@ -107,7 +117,7 @@ docker compose up --build -d
 ```
 
 This starts:
-- **bookextractor** — FastAPI service (port 8000)
+- **metaextractor** — FastAPI service (port 8000)
 - **redis** — Message broker and result backend (port 6379)
 - **worker-gpu** — GPU worker for PDF/text extraction (vlm_queue)
 - **worker-cpu** — CPU worker for image extraction (default_queue)
@@ -134,7 +144,7 @@ docker compose --profile hybrid up --build -d
 
 | Service | Host Port | Description |
 |---------|-----------|-------------|
-| `bookextractor` | 8000 | FastAPI + LLM |
+| `metaextractor` | 8000 | FastAPI + LLM |
 | `redis` | 6379 | Message broker |
 | `vparse` | 9000 | OCR API (optional) |
 
@@ -162,11 +172,11 @@ Client → FastAPI → Redis Broker → Celery Workers
 
 ### Queue Routing
 
-| File Type | Queue | Worker | LLM |
-|-----------|-------|--------|-----|
-| PDF | `vlm_queue` | worker-gpu | Yes |
-| Text/JSON/MD | `vlm_queue` | worker-gpu | Yes |
-| Images | `default_queue` | worker-cpu | No |
+| File Type | Queue | Worker | LLM | GPU Required |
+|-----------|-------|--------|-----|-------------|
+| PDF | `vlm_queue` | worker-gpu | Yes (anyLLM or vLLM) | Only if vLLM |
+| Text/JSON/MD | `vlm_queue` | worker-gpu | Yes (anyLLM or vLLM) | Only if vLLM |
+| Images | `default_queue` | worker-cpu | No | No |
 
 ### Supported Models
 
@@ -189,11 +199,40 @@ Client → FastAPI → Redis Broker → Celery Workers
 | `VPARSE_API_URL` | vParse OCR API URL | `http://localhost:8000/file_parse` |
 | `CELERY_BROKER_URL` | Redis broker URL | `redis://localhost:6379/0` |
 | `CELERY_RESULT_BACKEND` | Redis result backend | `redis://localhost:6379/0` |
-| `BOOKEXTRACTOR_UPLOAD_DIR` | Upload directory | `uploads` |
+| `METAEXTRACTOR_UPLOAD_DIR` | Upload directory | `uploads` |
 | `VLLM_DEVICE` | Target device: cuda, tpu, mps, cpu | Auto-detected |
 | `VLLM_DTYPE` | Model precision | Auto-optimized |
 | `VLLM_GPU_MEMORY_UTILIZATION` | GPU memory fraction (0.0-1.0) | Auto-optimized |
 | `VLLM_TENSOR_PARALLEL_SIZE` | Number of GPUs (or `auto`) | Auto-optimized |
+
+### Remote LLM (anyLLM)
+
+Configure remote HTTP-based inference to avoid needing a local GPU for text extraction:
+
+```env
+METAEXTRACTOR_LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
+METAEXTRACTOR_LLM_BASE_URL=https://api-inference.huggingface.co/v1
+METAEXTRACTOR_LLM_API_KEY=hf_your-key-here
+METAEXTRACTOR_LLM_PROVIDER=openai
+```
+
+**Ollama example:**
+```env
+METAEXTRACTOR_LLM_MODEL=qwen2.5:7b
+METAEXTRACTOR_LLM_BASE_URL=http://localhost:11434/v1
+METAEXTRACTOR_LLM_API_KEY=ollama
+METAEXTRACTOR_LLM_PROVIDER=openai
+```
+
+**Backend selection:**
+
+| Mode | Flag | Behavior |
+|------|------|----------|
+| Auto (default) | `-b auto` | Uses remote LLM if env vars set, falls back to local vLLM |
+| Remote | `-b remote` | Forces anyLLM (requires env vars) |
+| Local | `-b local` | Forces local vLLM (ignores remote env vars) |
+
+**Note:** Remote LLM is text-only. Image VLM analysis (`describe_image()`) still requires local vLLM on GPU.
 
 ## Development
 

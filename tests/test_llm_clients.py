@@ -1,0 +1,265 @@
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from metaextractor.llm_clients import (
+    AnyLLMClient,
+    create_llm_client,
+    has_partial_remote_llm_config,
+    has_remote_llm_config,
+    parse_json_object,
+)
+
+
+def test_parse_json_object_extracts_embedded_json():
+    result = parse_json_object('prefix {"title": "Test Book"} suffix')
+
+    assert result == {"title": "Test Book"}
+
+
+def test_parse_json_object_returns_empty_dict_on_invalid_json():
+    result = parse_json_object("not json at all")
+
+    assert result == {}
+
+
+def test_has_remote_llm_config_returns_false_when_unset(monkeypatch):
+    monkeypatch.delenv("METAEXTRACTOR_LLM_MODEL", raising=False)
+    monkeypatch.delenv("METAEXTRACTOR_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("METAEXTRACTOR_LLM_API_KEY", raising=False)
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    assert has_remote_llm_config() is False
+
+
+def test_has_remote_llm_config_requires_complete_values(monkeypatch):
+    monkeypatch.setenv("METAEXTRACTOR_LLM_MODEL", "test-model")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_BASE_URL", "http://localhost:1234/v1")
+    monkeypatch.delenv("METAEXTRACTOR_LLM_API_KEY", raising=False)
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    assert has_remote_llm_config() is False
+
+
+def test_has_partial_remote_llm_config_detects_incomplete_values(monkeypatch):
+    monkeypatch.setenv("METAEXTRACTOR_LLM_MODEL", "test-model")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_BASE_URL", "http://localhost:1234/v1")
+    monkeypatch.delenv("METAEXTRACTOR_LLM_API_KEY", raising=False)
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    assert has_partial_remote_llm_config() is True
+
+
+def test_create_llm_client_uses_anyllm_when_remote_config_exists(monkeypatch):
+    monkeypatch.setenv("METAEXTRACTOR_LLM_MODEL", "remote-model")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_BASE_URL", "http://localhost:1234/v1")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_API_KEY", "test-key")
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    with patch("metaextractor.llm_clients.AnyLLMClient") as mock_client:
+        client = create_llm_client(model_id="remote-model")
+
+    assert client == mock_client.return_value
+    mock_client.assert_called_once_with(model_id="remote-model")
+
+
+def test_create_llm_client_falls_back_to_local_vllm(monkeypatch):
+    monkeypatch.delenv("METAEXTRACTOR_LLM_MODEL", raising=False)
+    monkeypatch.delenv("METAEXTRACTOR_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("METAEXTRACTOR_LLM_API_KEY", raising=False)
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    with patch("metaextractor.llm_clients.LocalVLLMClient") as mock_client:
+        client = create_llm_client()
+
+    assert client == mock_client.return_value
+    mock_client.assert_called_once_with(model_id=None)
+
+
+def test_create_llm_client_rejects_incomplete_remote_config(monkeypatch):
+    monkeypatch.setenv("METAEXTRACTOR_LLM_MODEL", "remote-model")
+    monkeypatch.delenv("METAEXTRACTOR_LLM_BASE_URL", raising=False)
+    monkeypatch.setenv("METAEXTRACTOR_LLM_API_KEY", "test-key")
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    with pytest.raises(RuntimeError, match="Incomplete remote LLM configuration"):
+        create_llm_client()
+
+
+def test_anyllm_requires_model(monkeypatch):
+    monkeypatch.delenv("METAEXTRACTOR_LLM_MODEL", raising=False)
+    monkeypatch.setenv("METAEXTRACTOR_LLM_BASE_URL", "http://localhost:1234/v1")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_API_KEY", "test-key")
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    with pytest.raises(RuntimeError, match="METAEXTRACTOR_LLM_MODEL"):
+        AnyLLMClient()
+
+
+def test_anyllm_requires_base_url(monkeypatch):
+    monkeypatch.setenv("METAEXTRACTOR_LLM_MODEL", "test-model")
+    monkeypatch.delenv("METAEXTRACTOR_LLM_BASE_URL", raising=False)
+    monkeypatch.setenv("METAEXTRACTOR_LLM_API_KEY", "test-key")
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    with pytest.raises(RuntimeError, match="METAEXTRACTOR_LLM_BASE_URL"):
+        AnyLLMClient()
+
+
+def test_anyllm_requires_api_key(monkeypatch):
+    monkeypatch.setenv("METAEXTRACTOR_LLM_MODEL", "test-model")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_BASE_URL", "http://localhost:1234/v1")
+    monkeypatch.delenv("METAEXTRACTOR_LLM_API_KEY", raising=False)
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    with pytest.raises(RuntimeError, match="METAEXTRACTOR_LLM_API_KEY"):
+        AnyLLMClient()
+
+
+def test_anyllm_extracts_semantic_fields(monkeypatch):
+    monkeypatch.setenv("METAEXTRACTOR_LLM_MODEL", "test-model")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_BASE_URL", "http://localhost:1234/v1")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_API_KEY", "test-key")
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    mock_chat = MagicMock(
+        return_value=SimpleNamespace(content='{"title": "Remote Book", "author": "Remote Author", "publisher": null}')
+    )
+    mock_config = MagicMock()
+
+    mock_anyllm = SimpleNamespace(chat=mock_chat, get_config=MagicMock(return_value=mock_config))
+
+    with patch("metaextractor.llm_clients._import_anyllm", return_value=mock_anyllm):
+        client = AnyLLMClient()
+
+    assert client.extract_semantic_fields("OCR content") == {
+        "title": "Remote Book",
+        "author": "Remote Author",
+        "publisher": None,
+    }
+
+
+def test_create_llm_client_backend_local_forces_vllm(monkeypatch):
+    monkeypatch.setenv("METAEXTRACTOR_LLM_MODEL", "remote-model")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_BASE_URL", "http://localhost:1234/v1")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_API_KEY", "test-key")
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    with patch("metaextractor.llm_clients.LocalVLLMClient") as mock_client:
+        client = create_llm_client(backend="local")
+
+    assert client == mock_client.return_value
+    mock_client.assert_called_once_with(model_id=None)
+
+
+def test_create_llm_client_backend_remote_forces_anyllm(monkeypatch):
+    monkeypatch.setenv("METAEXTRACTOR_LLM_MODEL", "remote-model")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_BASE_URL", "http://localhost:1234/v1")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_API_KEY", "test-key")
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    with patch("metaextractor.llm_clients.AnyLLMClient") as mock_client:
+        client = create_llm_client(backend="remote")
+
+    assert client == mock_client.return_value
+    mock_client.assert_called_once_with(model_id=None)
+
+
+def test_create_llm_client_backend_remote_rejects_incomplete_config(monkeypatch):
+    monkeypatch.setenv("METAEXTRACTOR_LLM_MODEL", "remote-model")
+    monkeypatch.delenv("METAEXTRACTOR_LLM_BASE_URL", raising=False)
+    monkeypatch.setenv("METAEXTRACTOR_LLM_API_KEY", "test-key")
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    with pytest.raises(RuntimeError, match="Incomplete remote LLM configuration"):
+        create_llm_client(backend="remote")
+
+
+def test_create_llm_client_backend_auto_respects_env_vars(monkeypatch):
+    monkeypatch.setenv("METAEXTRACTOR_LLM_MODEL", "remote-model")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_BASE_URL", "http://localhost:1234/v1")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_API_KEY", "test-key")
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    with patch("metaextractor.llm_clients.AnyLLMClient") as mock_client:
+        client = create_llm_client(backend="auto")
+
+    assert client == mock_client.return_value
+
+
+def test_create_llm_client_backend_auto_falls_back_to_local(monkeypatch):
+    monkeypatch.delenv("METAEXTRACTOR_LLM_MODEL", raising=False)
+    monkeypatch.delenv("METAEXTRACTOR_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("METAEXTRACTOR_LLM_API_KEY", raising=False)
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    with patch("metaextractor.llm_clients.LocalVLLMClient") as mock_client:
+        client = create_llm_client(backend="auto")
+
+    assert client == mock_client.return_value
+
+
+def test_anyllm_returns_empty_dict_when_response_has_no_content(monkeypatch):
+    monkeypatch.setenv("METAEXTRACTOR_LLM_MODEL", "test-model")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_BASE_URL", "http://localhost:1234/v1")
+    monkeypatch.setenv("METAEXTRACTOR_LLM_API_KEY", "test-key")
+
+    from metaextractor import config
+
+    config.settings = config.Settings()
+
+    mock_anyllm = SimpleNamespace(
+        chat=MagicMock(return_value=SimpleNamespace(content=None)),
+        get_config=MagicMock(return_value=MagicMock()),
+    )
+
+    with patch("metaextractor.llm_clients._import_anyllm", return_value=mock_anyllm):
+        client = AnyLLMClient()
+
+    assert client.extract_semantic_fields("OCR content") == {}

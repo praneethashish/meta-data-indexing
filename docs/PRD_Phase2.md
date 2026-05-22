@@ -49,7 +49,7 @@ The current extraction system supports text, PDFs, and level 1 image metadata (E
 
 ## Out of Scope
 
-- Changing the underlying Python package name (`bookextractor`).
+- Changing the underlying Python package name (`metaextractor`).
 - Audio transcription (Speech-to-Text).
 - Video frame-by-frame VLM analysis.
 

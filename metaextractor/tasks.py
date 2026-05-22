@@ -12,8 +12,8 @@ from .pipeline import ExtractionPipeline
 logger = logging.getLogger(__name__)
 
 # Initialize Celery app
-celery_app = Celery("bookextractor")
-celery_app.config_from_object("bookextractor.celery_config")
+celery_app = Celery("metaextractor")
+celery_app.config_from_object("metaextractor.celery_config")
 
 # Singleton pipeline instances
 _pipeline_with_vlm = None
@@ -65,7 +65,7 @@ def get_pipeline(load_vlm: bool = True):
         return _pipeline_no_vlm
 
 
-@celery_app.task(name="bookextractor.extract_pdf", bind=True)
+@celery_app.task(name="metaextractor.extract_pdf", bind=True)
 def extract_pdf_task(self, pdf_path: str, lang: str = "en", benchmark: bool = False):  # noqa: ARG001
     """Celery task for PDF extraction."""
     t0 = time.monotonic()
@@ -87,7 +87,7 @@ def extract_pdf_task(self, pdf_path: str, lang: str = "en", benchmark: bool = Fa
             os.remove(pdf_path)
 
 
-@celery_app.task(name="bookextractor.extract_image", bind=True)
+@celery_app.task(name="metaextractor.extract_image", bind=True)
 def extract_image_task(self, image_path: str, benchmark: bool = False, use_vlm: bool = False):  # noqa: ARG001
     """Celery task for image extraction."""
     t0 = time.monotonic()
@@ -109,7 +109,7 @@ def extract_image_task(self, image_path: str, benchmark: bool = False, use_vlm: 
             os.remove(image_path)
 
 
-@celery_app.task(name="bookextractor.extract_text", bind=True)
+@celery_app.task(name="metaextractor.extract_text", bind=True)
 def extract_text_task(self, file_path: str, benchmark: bool = False, lang: str = "en"):  # noqa: ARG001
     """Celery task for text/json file extraction."""
     t0 = time.monotonic()

@@ -32,6 +32,6 @@ task_queues = {
 
 # Image tasks are routed at runtime based on use_vlm flag.
 task_routes = {
-    "bookextractor.extract_pdf": {"queue": "vlm_queue"},
-    "bookextractor.extract_text": {"queue": "vlm_queue"},
+    "metaextractor.extract_pdf": {"queue": "vlm_queue"},
+    "metaextractor.extract_text": {"queue": "vlm_queue"},
 }

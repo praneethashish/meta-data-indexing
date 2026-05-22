@@ -12,6 +12,7 @@ import uvicorn
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 
 from .config import settings
+from .llm_clients import has_partial_remote_llm_config, has_remote_llm_config
 from .pipeline import ExtractionPipeline
 from .tasks import celery_app, extract_image_task, extract_pdf_task, extract_text_task
 
@@ -24,6 +25,14 @@ class OCRLanguage(str, Enum):
     ENGLISH = "en"
     TELUGU = "te"
     HINDI = "devanagari"
+
+
+class LLMBackend(str, Enum):
+    """LLM backend selection mode."""
+
+    AUTO = "auto"
+    REMOTE = "remote"
+    LOCAL = "local"
 
 
 app = FastAPI()
@@ -53,6 +62,15 @@ async def extract_async(
     use_vlm: bool = Form(False, description="Run deep Vision analysis on images (requires GPU)"),  # noqa: B008
 ):
     """Submit an extraction job to the background queue."""
+    if has_partial_remote_llm_config():
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Incomplete remote LLM configuration. Set METAEXTRACTOR_LLM_MODEL, "
+                "METAEXTRACTOR_LLM_BASE_URL, and METAEXTRACTOR_LLM_API_KEY together, "
+                "or remove them to use the local vLLM fallback."
+            ),
+        )
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
     filename = file.filename.lower()
@@ -121,10 +139,42 @@ async def _extract_file(
     lang: OCRLanguage = OCRLanguage.ENGLISH,
     max_model_len: int = 4096,
     use_vlm: bool = False,
+    backend: LLMBackend = LLMBackend.AUTO,
 ) -> None:
     filename = input_file.lower()
     is_image = filename.endswith(settings.IMAGE_EXTENSIONS)
-    p = ExtractionPipeline(max_model_len=max_model_len, load_vlm=(not is_image) or use_vlm)
+    needs_llm = (not is_image) or use_vlm
+
+    if backend == LLMBackend.LOCAL:
+        if needs_llm:
+            logger.info("Backend forced to local vLLM (ignoring remote env vars)")
+    elif backend == LLMBackend.REMOTE:
+        if has_partial_remote_llm_config():
+            print(
+                "Error: Incomplete remote LLM configuration. Set METAEXTRACTOR_LLM_MODEL, "
+                "METAEXTRACTOR_LLM_BASE_URL, and METAEXTRACTOR_LLM_API_KEY together."
+            )
+            raise typer.Exit(code=1)
+        if not has_remote_llm_config():
+            print(
+                "Error: --backend remote requires METAEXTRACTOR_LLM_MODEL, "
+                "METAEXTRACTOR_LLM_BASE_URL, and METAEXTRACTOR_LLM_API_KEY to be set."
+            )
+            raise typer.Exit(code=1)
+    else:
+        if needs_llm and has_partial_remote_llm_config():
+            print(
+                "Error: Incomplete remote LLM configuration. Set METAEXTRACTOR_LLM_MODEL, "
+                "METAEXTRACTOR_LLM_BASE_URL, and METAEXTRACTOR_LLM_API_KEY together, "
+                "or remove them to use the local vLLM fallback."
+            )
+            raise typer.Exit(code=1)
+
+    p = ExtractionPipeline(
+        max_model_len=max_model_len,
+        load_vlm=(not is_image) or use_vlm,
+        llm_backend=backend.value,
+    )
 
     if filename.endswith(".pdf"):
         result = await p.process_pdf(input_file, benchmark=benchmark, lang=lang.value)
@@ -138,7 +188,7 @@ async def _extract_file(
 
     os.makedirs(os.path.dirname(os.path.abspath(output_json)), exist_ok=True)
     with open(output_json, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2)
+        json.dump(result, f, indent=2, ensure_ascii=False)
     logger.info("Results saved to %s", output_json)
 
 
@@ -181,8 +231,8 @@ def main(
         return
 
     print(
-        "Error: Missing arguments. Usage: bookextractor extract <input_file> <output.json> [--lang te], "
-        "or bookextractor api"
+        "Error: Missing arguments. Usage: metaextractor extract <input_file> <output.json> [--lang te], "
+        "or metaextractor api"
     )
     raise typer.Exit(code=1)
 
@@ -205,10 +255,22 @@ def extract_command(
         "--max-model-len",
         help="Maximum context length (reduce to save VRAM)",
     ),
+    backend: LLMBackend = typer.Option(  # noqa: B008
+        LLMBackend.AUTO,
+        "--backend",
+        "-b",
+        help="LLM backend: auto (env-driven), remote (force anyLLM), local (force vLLM)",
+    ),
 ) -> None:
     asyncio.run(
         _extract_file(
-            input_file, output_json, benchmark=benchmark, lang=lang, max_model_len=max_model_len, use_vlm=use_vlm
+            input_file,
+            output_json,
+            benchmark=benchmark,
+            lang=lang,
+            max_model_len=max_model_len,
+            use_vlm=use_vlm,
+            backend=backend,
         )
     )
 
@@ -235,7 +297,7 @@ def worker_command(
     cmd = [
         "celery",
         "-A",
-        "bookextractor.tasks",
+        "metaextractor.tasks",
         "worker",
         "-Q",
         queue,

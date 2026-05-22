@@ -1,4 +1,4 @@
-from bookextractor.validation import extract_isbn_candidates, validate_isbn
+from metaextractor.validation import extract_isbn_candidates, validate_isbn
 
 
 def test_validate_isbn10():

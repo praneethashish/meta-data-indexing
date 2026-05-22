@@ -9,7 +9,7 @@ except ImportError:
 
 from unittest.mock import patch
 
-from bookextractor.image_utils import (
+from metaextractor.image_utils import (
     combine_regions,
     crop_bbox,
     crop_regions,

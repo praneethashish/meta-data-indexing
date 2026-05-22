@@ -1,5 +1,5 @@
-from bookextractor.config import settings
-from bookextractor.prompts import (
+from metaextractor.config import settings
+from metaextractor.prompts import (
     BOOK_EXTRACTION_PROMPT,
     DEFAULT_LANGUAGE_LABEL,
     IMAGE_ANALYSIS_PROMPT,

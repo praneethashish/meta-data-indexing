@@ -27,7 +27,7 @@ ruff-lint:
   stage: lint
   script:
     - uv run --group lint ruff check .
-    - uv run --group lint vulture bookextractor/
+    - uv run --group lint vulture metaextractor/
   only:
     changes: &changes_filter
       - "**/*.py"
@@ -47,7 +47,7 @@ type-check:
   <<: *setup_uv
   stage: type-check
   script:
-    - uv run --group lint mypy bookextractor/
+    - uv run --group lint mypy metaextractor/
   only:
     changes: *changes_filter
 
@@ -57,7 +57,7 @@ pytest:
   variables:
     UV_NO_INSTALL_PROJECT: "0"
   script:
-    - uv run --extra ml --group test pytest tests/ --cov=bookextractor --cov-report=term --cov-report=xml --cov-fail-under=90
+    - uv run --extra ml --group test pytest tests/ --cov=metaextractor --cov-report=term --cov-report=xml --cov-fail-under=90
   coverage: '/TOTAL.*\s+(\d+%)$/'
   only:
     changes: *changes_filter
@@ -75,7 +75,7 @@ docker-build:
   before_script:
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
   script:
-    - docker build -t $CI_REGISTRY_IMAGE:latest -f Dockerfile.bookextractor .
+    - docker build -t $CI_REGISTRY_IMAGE:latest -f Dockerfile.metaextractor .
     - docker push $CI_REGISTRY_IMAGE:latest
   only:
     - main

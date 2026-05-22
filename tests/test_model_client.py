@@ -2,8 +2,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from bookextractor.model_client import ModelClient, parse_json_from_text
-from bookextractor.model_manager import ModelManager
+from metaextractor.model_client import ModelClient, parse_json_from_text
+from metaextractor.model_manager import ModelManager
 
 _MOCK_CONFIG = {
     "detected_hardware": {"name": "TestDevice", "memory_gb": 16, "count": 1},
@@ -26,8 +26,8 @@ class MockLLM:
 @pytest.fixture
 def mock_llm():
     with (
-        patch("bookextractor.model_manager.LLM", MockLLM),
-        patch("bookextractor.hardware.get_vllm_config", return_value=_MOCK_CONFIG),
+        patch("metaextractor.model_manager.LLM", MockLLM),
+        patch("metaextractor.hardware.get_vllm_config", return_value=_MOCK_CONFIG),
     ):
         yield MockLLM
 
@@ -156,7 +156,7 @@ async def test_describe_image(tmp_path):
 
     client._model_manager._model = mock_llm_instance
 
-    with patch("bookextractor.model_client.Image") as mock_pil_image:
+    with patch("metaextractor.model_client.Image") as mock_pil_image:
         mock_pil_image.open.return_value.convert.return_value = MagicMock()
         result = await client.describe_image(str(image_path))
 
@@ -175,8 +175,8 @@ def test_model_client_delegates_model_detection_to_manager():
             pass
 
     with (
-        patch("bookextractor.hardware.get_vllm_config", return_value=_MOCK_CONFIG),
-        patch("bookextractor.model_manager.LLM", FakeLLM),
+        patch("metaextractor.hardware.get_vllm_config", return_value=_MOCK_CONFIG),
+        patch("metaextractor.model_manager.LLM", FakeLLM),
     ):
         manager = ModelManager.get_instance()
         manager.get_or_create(model_id=None, max_model_len=4096)

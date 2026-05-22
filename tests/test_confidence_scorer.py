@@ -1,9 +1,9 @@
-from bookextractor.confidence_scorer import (
+from metaextractor.confidence_scorer import (
     calculate_book_confidence,
     calculate_magazine_confidence,
 )
-from bookextractor.config import settings
-from bookextractor.models import ConfidenceScores, MagazineConfidenceScores
+from metaextractor.config import settings
+from metaextractor.models import ConfidenceScores, MagazineConfidenceScores
 
 
 def test_book_confidence_with_full_data():

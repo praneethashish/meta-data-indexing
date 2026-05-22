@@ -8,19 +8,19 @@ try:
 except ImportError:
     torch = None  # type: ignore
 
-from bookextractor.hardware import _check_mps, _check_nvidia_nvml, _check_nvidia_torch, get_vllm_config
+from metaextractor.hardware import _check_mps, _check_nvidia_nvml, _check_nvidia_torch, get_vllm_config
 
 
 @pytest.fixture
 def mock_pynvml():
-    with patch("bookextractor.hardware.pynvml") as mock:
+    with patch("metaextractor.hardware.pynvml") as mock:
         yield mock
 
 
 def test_check_tpu_mock():
     # Cover the TPU branch in get_vllm_config
     mock_res = {"device": "tpu", "count": 1, "memory_gb": 16.0, "name": "TPU", "precision_supported": ["bfloat16"]}
-    with patch("bookextractor.hardware._check_tpu", return_value=mock_res):
+    with patch("metaextractor.hardware._check_tpu", return_value=mock_res):
         res = get_vllm_config()
         assert res["device"] == "tpu"
 
@@ -63,13 +63,13 @@ def test_get_vllm_config_cuda_branches():
         "count": 1,
         "precision_supported": ["float16", "bfloat16"],
     }
-    with patch("bookextractor.hardware.detect_hardware", return_value=hw):
+    with patch("metaextractor.hardware.detect_hardware", return_value=hw):
         config = get_vllm_config()
         assert config["dtype"] == "bfloat16"
 
     # Test small memory branch
     hw["memory_gb"] = 4.0
-    with patch("bookextractor.hardware.detect_hardware", return_value=hw):
+    with patch("metaextractor.hardware.detect_hardware", return_value=hw):
         config = get_vllm_config()
         assert config["dtype"] == "float16"
 
@@ -85,7 +85,7 @@ def test_get_vllm_config_overrides():
         },
     ):
         hw = {"device": "cuda", "count": 4, "name": "GPU", "memory_gb": 16.0, "precision_supported": ["float16"]}
-        with patch("bookextractor.hardware.detect_hardware", return_value=hw):
+        with patch("metaextractor.hardware.detect_hardware", return_value=hw):
             config = get_vllm_config()
             assert config["tensor_parallel_size"] == 4
             assert config["dtype"] == "bfloat16"

@@ -77,9 +77,9 @@ async def test_process_pdf_calls_vparse(pipeline, sample_vparse_response, tmp_pa
     pdf_path.write_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF")
 
     with (
-        patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
-        patch("bookextractor.pipeline.extract_isbn_candidates", return_value=["978-0123456789"]),
-        patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_lookup,
+        patch("metaextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
+        patch("metaextractor.pipeline.extract_isbn_candidates", return_value=["978-0123456789"]),
+        patch("metaextractor.pipeline.lookup_isbn", new_callable=AsyncMock) as mock_lookup,
     ):
         mock_vparse.return_value = sample_vparse_response
         mock_lookup.return_value = {}
@@ -96,9 +96,9 @@ async def test_process_pdf_fallback_content_list(pipeline, sample_vparse_content
     pdf_path.write_bytes(b"%PDF-1.4\n")
 
     with (
-        patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
-        patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
-        patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        patch("metaextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
+        patch("metaextractor.pipeline.extract_isbn_candidates", return_value=[]),
+        patch("metaextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
     ):
         mock_vparse.return_value = sample_vparse_content_list
 
@@ -113,9 +113,9 @@ async def test_process_image_extracts_metadata(pipeline, sample_image_metadata, 
     image_path = tmp_path / "test.jpg"
     image_path.write_bytes(b"\xff\xd8\xff\xe0\x00\x10JFIF")
 
-    pipeline.client = None
+    pipeline.vision_client = None
 
-    with patch("bookextractor.pipeline.extract_image_metadata", return_value=sample_image_metadata):
+    with patch("metaextractor.pipeline.extract_image_metadata", return_value=sample_image_metadata):
         result = await pipeline.process_image(str(image_path))
 
         assert "image_metadata" in result
@@ -129,9 +129,9 @@ async def test_process_image_benchmark_mode(pipeline, sample_image_metadata, tmp
     image_path = tmp_path / "test.jpg"
     image_path.write_bytes(b"\xff\xd8\xff\xe0")
 
-    pipeline.client = None
+    pipeline.vision_client = None
 
-    with patch("bookextractor.pipeline.extract_image_metadata", return_value=sample_image_metadata):
+    with patch("metaextractor.pipeline.extract_image_metadata", return_value=sample_image_metadata):
         result = await pipeline.process_image(str(image_path), benchmark=True)
 
         assert "result" in result
@@ -144,8 +144,8 @@ async def test_process_text_file_reads_content(pipeline, tmp_path):
     text_path.write_text("# Test Book\nBy Test Author")
 
     with (
-        patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
-        patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        patch("metaextractor.pipeline.extract_isbn_candidates", return_value=[]),
+        patch("metaextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
     ):
         result = await pipeline.process_text_file(str(text_path))
 
@@ -155,8 +155,8 @@ async def test_process_text_file_reads_content(pipeline, tmp_path):
 @pytest.mark.asyncio
 async def test_extract_from_text_with_isbn(pipeline, mock_isbn_lookup, sample_book_text):
     with (
-        patch("bookextractor.pipeline.extract_isbn_candidates", return_value=["978-0123456789"]),
-        patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, side_effect=mock_isbn_lookup),
+        patch("metaextractor.pipeline.extract_isbn_candidates", return_value=["978-0123456789"]),
+        patch("metaextractor.pipeline.lookup_isbn", new_callable=AsyncMock, side_effect=mock_isbn_lookup),
     ):
         result = await pipeline.extract_from_text(sample_book_text)
 
@@ -168,8 +168,8 @@ async def test_extract_from_text_with_isbn(pipeline, mock_isbn_lookup, sample_bo
 @pytest.mark.asyncio
 async def test_extract_from_text_without_isbn(pipeline, sample_book_text):
     with (
-        patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
-        patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        patch("metaextractor.pipeline.extract_isbn_candidates", return_value=[]),
+        patch("metaextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
     ):
         result = await pipeline.extract_from_text(sample_book_text)
 
@@ -181,8 +181,8 @@ async def test_extract_from_text_without_isbn(pipeline, sample_book_text):
 @pytest.mark.asyncio
 async def test_extract_from_text_benchmark_mode(pipeline, sample_book_text):
     with (
-        patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
-        patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        patch("metaextractor.pipeline.extract_isbn_candidates", return_value=[]),
+        patch("metaextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
     ):
         result = await pipeline.extract_from_text(sample_book_text, benchmark=True)
 
@@ -193,9 +193,9 @@ async def test_extract_from_text_benchmark_mode(pipeline, sample_book_text):
         assert "text_snippet" in result["debug"]
 
 
-@patch("bookextractor.model_client.ModelClient.get_instance")
+@patch("metaextractor.model_client.ModelClient.get_instance")
 def test_pipeline_init(mock_client):
-    from bookextractor.pipeline import ExtractionPipeline
+    from metaextractor.pipeline import ExtractionPipeline
 
     _ = ExtractionPipeline(model_id="custom-model")
     mock_client.assert_called_with(model_id="custom-model", max_model_len=4096)
@@ -209,9 +209,9 @@ async def test_process_pdf_invalid_json_fallback(pipeline, tmp_path):
     bad_vparse_response = {"results": {"test": {"content_list": "invalid { json", "md_content": "fallback text"}}}
 
     with (
-        patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
-        patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
-        patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        patch("metaextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
+        patch("metaextractor.pipeline.extract_isbn_candidates", return_value=[]),
+        patch("metaextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
     ):
         mock_vparse.return_value = bad_vparse_response
         result = await pipeline.process_pdf(str(pdf_path))
@@ -219,7 +219,7 @@ async def test_process_pdf_invalid_json_fallback(pipeline, tmp_path):
 
 
 def test_calculate_confidence_with_data():
-    from bookextractor.confidence_scorer import calculate_book_confidence
+    from metaextractor.confidence_scorer import calculate_book_confidence
 
     final = {"title": "Test Book", "author": "Test Author", "publisher": "Test Publisher", "published_date": "2023"}
 
@@ -240,7 +240,7 @@ def test_calculate_confidence_with_data():
 
 
 def test_calculate_confidence_without_data():
-    from bookextractor.confidence_scorer import calculate_book_confidence
+    from metaextractor.confidence_scorer import calculate_book_confidence
 
     final = {"title": None, "author": None, "publisher": None, "published_date": None}
 
@@ -261,9 +261,9 @@ async def test_process_pdf_benchmark_mode(pipeline, sample_vparse_response, tmp_
     pdf_path.write_bytes(b"%PDF-1.4")
 
     with (
-        patch("bookextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
-        patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
-        patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        patch("metaextractor.pipeline.parse_pdf_via_vparse", new_callable=AsyncMock) as mock_vparse,
+        patch("metaextractor.pipeline.extract_isbn_candidates", return_value=[]),
+        patch("metaextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
     ):
         mock_vparse.return_value = sample_vparse_response
         result = await pipeline.process_pdf(str(pdf_path), benchmark=True)
@@ -275,7 +275,7 @@ async def test_process_pdf_benchmark_mode(pipeline, sample_vparse_response, tmp_
 async def test_extract_from_text_magazine(pipeline):
     magazine_text = "చందమామ మాసపత్రిక ఆగస్టు 1948 సంచిక 2 ఖరీదు 0-6-0"
 
-    pipeline.client.generate_and_extract.return_value = {
+    pipeline.llm_client.extract_magazine_fields.return_value = {
         "magazine_name": "చందమామ",
         "issue_date": "August 1948",
         "issue_number": "2",
@@ -296,7 +296,7 @@ async def test_extract_from_text_magazine(pipeline):
 async def test_extract_from_text_magazine_benchmark(pipeline):
     magazine_text = "ఆంధ్రజ్యోతి మాసపత్రిక"
 
-    pipeline.client.generate_and_extract.return_value = {
+    pipeline.llm_client.extract_magazine_fields.return_value = {
         "magazine_name": "ఆంధ్రజ్యోతి",
     }
 
@@ -319,14 +319,14 @@ async def test_extract_from_text_magazine_json_input(pipeline, tmp_path):
         )
     )
 
-    pipeline.client.generate_and_extract.return_value = {
+    pipeline.llm_client.extract_magazine_fields.return_value = {
         "magazine_name": "చందమామ",
         "issue_date": "August 1948",
     }
 
     with (
-        patch("bookextractor.pipeline.extract_isbn_candidates", return_value=[]),
-        patch("bookextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
+        patch("metaextractor.pipeline.extract_isbn_candidates", return_value=[]),
+        patch("metaextractor.pipeline.lookup_isbn", new_callable=AsyncMock, return_value={}),
     ):
         result = await pipeline.process_text_file(str(json_input))
 
@@ -335,7 +335,7 @@ async def test_extract_from_text_magazine_json_input(pipeline, tmp_path):
 
 
 def test_detect_content_type():
-    from bookextractor.content_detector import detect_content_type
+    from metaextractor.content_detector import detect_content_type
 
     assert detect_content_type("మాసపత్రిక విషయాలు") == "magazine"
     assert detect_content_type("సంచిక 2 నంపుటి") == "magazine"

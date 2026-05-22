@@ -69,13 +69,13 @@ Phase 1 established the foundation for the metadata extraction pipeline, impleme
 
 | Module             | Path                             | Responsibility                     |
 | ------------------ | -------------------------------- | ---------------------------------- |
-| `main.py`          | `bookextractor/main.py`          | FastAPI application, format router |
-| `pipeline.py`      | `bookextractor/pipeline.py`      | Extraction pipeline orchestrator   |
-| `vparse_client.py` | `bookextractor/vparse_client.py` | VParse API client                  |
-| `image_utils.py`   | `bookextractor/image_utils.py`   | EXIF extraction utilities          |
-| `models.py`        | `bookextractor/models.py`        | Pydantic data models               |
-| `validation.py`    | `bookextractor/validation.py`    | ISBN validation                    |
-| `external_api.py`  | `bookextractor/external_api.py`  | OpenLibrary API client             |
+| `main.py`          | `metaextractor/main.py`          | FastAPI application, format router |
+| `pipeline.py`      | `metaextractor/pipeline.py`      | Extraction pipeline orchestrator   |
+| `vparse_client.py` | `metaextractor/vparse_client.py` | VParse API client                  |
+| `image_utils.py`   | `metaextractor/image_utils.py`   | EXIF extraction utilities          |
+| `models.py`        | `metaextractor/models.py`        | Pydantic data models               |
+| `validation.py`    | `metaextractor/validation.py`    | ISBN validation                    |
+| `external_api.py`  | `metaextractor/external_api.py`  | OpenLibrary API client             |
 
 ### Data Models
 
@@ -192,7 +192,7 @@ curl -X POST "http://localhost:8000/extract" \
 
 | Service         | Dockerfile                 | Description                         |
 | --------------- | -------------------------- | ----------------------------------- |
-| `bookextractor` | `Dockerfile.bookextractor` | FastAPI application with vLLM + GPU |
+| `metaextractor` | `Dockerfile.metaextractor` | FastAPI application with vLLM + GPU |
 | `vparse`        | `Dockerfile.vparse`        | VParse OCR API (CPU-only)           |
 | `vparse-lite`   | `Dockerfile.vparse.lite`   | Tesseract-only OCR (lightweight)    |
 | `vparse-gpu`    | `Dockerfile.vparse.gpu`    | VParse with GPU support for OCR     |
@@ -210,7 +210,7 @@ docker-compose up --build
 | Variable                   | Description                        | Default                            |
 | -------------------------- | ---------------------------------- | ---------------------------------- |
 | `VPARSE_API_URL`           | VParse API endpoint                | `http://localhost:8000/file_parse` |
-| `BOOKEXTRACTOR_MODELS_DIR` | Local models directory             | `./models`                         |
+| `METAEXTRACTOR_MODELS_DIR` | Local models directory             | `./models`                         |
 | `VLLM_MODEL`               | Gemma-4 model ID                   | `google/gemma-4-E4B-it`            |
 | `HF_TOKEN`                 | HuggingFace token for model access | (required)                         |
 

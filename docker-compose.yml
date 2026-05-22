@@ -1,17 +1,19 @@
 services:
-  bookextractor:
+  metaextractor:
     build:
       context: .
-      dockerfile: Dockerfile.bookextractor
-    image: bookextractor:latest
+      dockerfile: Dockerfile.metaextractor
+    image: metaextractor:latest
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       - VPARSE_API_URL=http://vparse:8000/file_parse
       - HF_HOME=/models/huggingface
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - BOOKEXTRACTOR_UPLOAD_DIR=/app/uploads
+      - METAEXTRACTOR_UPLOAD_DIR=/app/uploads
     volumes:
       - ~/.cache/huggingface:/models/huggingface
       - models:/models
@@ -30,14 +32,16 @@ services:
   worker-cpu:
     build:
       context: .
-      dockerfile: Dockerfile.bookextractor
-    image: bookextractor:latest
-    command: bookextractor worker --queue default_queue --concurrency 8
+      dockerfile: Dockerfile.metaextractor
+    image: metaextractor:latest
+    command: metaextractor worker --queue default_queue --concurrency 8
+    env_file:
+      - .env
     environment:
       - VPARSE_API_URL=http://vparse:8000/file_parse
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - BOOKEXTRACTOR_UPLOAD_DIR=/app/uploads
+      - METAEXTRACTOR_UPLOAD_DIR=/app/uploads
       - HF_HOME=/models/huggingface
     volumes:
       - ~/.cache/huggingface:/models/huggingface
@@ -52,16 +56,18 @@ services:
   worker-gpu:
     build:
       context: .
-      dockerfile: Dockerfile.bookextractor
-    image: bookextractor:latest
-    command: bookextractor worker --queue vlm_queue --concurrency 2
+      dockerfile: Dockerfile.metaextractor
+    image: metaextractor:latest
+    command: metaextractor worker --queue vlm_queue --concurrency 2
+    env_file:
+      - .env
     environment:
       - VLLM_MODEL=${VLLM_MODEL_ID:-Qwen/Qwen2.5-VL-7B-Instruct}
       - VLLM_TENSOR_PARALLEL_SIZE=1
       - HF_HOME=/models/huggingface
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - BOOKEXTRACTOR_UPLOAD_DIR=/app/uploads
+      - METAEXTRACTOR_UPLOAD_DIR=/app/uploads
     volumes:
       - ~/.cache/huggingface:/models/huggingface
       - models:/models
@@ -83,6 +89,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.model-downloader
+    env_file:
+      - .env
     volumes:
       - ~/.cache/huggingface:/models/huggingface
       - models:/models

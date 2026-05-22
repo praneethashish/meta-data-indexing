@@ -1,6 +1,6 @@
 import pytest
 
-from bookextractor.external_api import lookup_isbn
+from metaextractor.external_api import lookup_isbn
 
 
 @pytest.fixture

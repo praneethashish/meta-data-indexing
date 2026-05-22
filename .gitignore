@@ -8,5 +8,7 @@ outputs/
 *.gguf
 .cache/
 .coverage
+coverage.xml
+htmlcov/
 mineru-dots/
 uploads/

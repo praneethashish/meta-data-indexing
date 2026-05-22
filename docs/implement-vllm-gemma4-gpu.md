@@ -37,7 +37,7 @@ Replace `llama-cpp-python` with `vllm` for GPU-accelerated inference using `goog
 - [x] Remove GGUF download logic (`_download_file_if_missing`, `resolve_model_paths`)
 - [x] Update `pyproject.toml` dependencies
 - [x] Update `.env.example` with new vLLM environment variables
-- [x] Update `Dockerfile.bookextractor` with CUDA base image
+- [x] Update `Dockerfile.metaextractor` with CUDA base image
 - [x] Update `docker-compose.yml` with GPU resources and HF cache volume mount
 - [x] Update `tests/test_pipeline.py` mocks for vLLM API
 - [x] Update `scripts/setup_models.py` for HuggingFace download
@@ -53,11 +53,11 @@ Replace `llama-cpp-python` with `vllm` for GPU-accelerated inference using `goog
 | File                          | Changes                                                              |
 | ----------------------------- | -------------------------------------------------------------------- |
 | `pyproject.toml`              | Replace `llama-cpp-python` with `vllm>=0.8.0`, add `huggingface_hub` |
-| `bookextractor/pipeline.py`   | Replace LLM initialization and inference API                         |
-| `bookextractor/models.py`     | Add `ImageVLMMetadata` placeholder                                   |
-| `bookextractor/vlm_client.py` | Create placeholder for future image VLM                              |
+| `metaextractor/pipeline.py`   | Replace LLM initialization and inference API                         |
+| `metaextractor/models.py`     | Add `ImageVLMMetadata` placeholder                                   |
+| `metaextractor/vlm_client.py` | Create placeholder for future image VLM                              |
 | `.env.example`                | Replace GGUF env vars with `VLLM_MODEL`, `HF_TOKEN`                  |
-| `Dockerfile.bookextractor`    | Use `nvidia/cuda` base image                                         |
+| `Dockerfile.metaextractor`    | Use `nvidia/cuda` base image                                         |
 | `docker-compose.yml`          | Add GPU resources, HF cache bind mount                               |
 | `tests/test_pipeline.py`      | Update mocks for vLLM API                                            |
 | `scripts/setup_models.py`     | Remove Gemma download                                                |
@@ -85,7 +85,7 @@ models volume (Docker):
 
 ## Docker Changes
 
-### Dockerfile.bookextractor
+### Dockerfile.metaextractor
 
 - Base image: `nvidia/cuda:12.4.0-runtime-ubuntu22.04`
 - Install `uv` for fast dependency resolution
@@ -96,7 +96,7 @@ models volume (Docker):
 
 ```yaml
 services:
-  bookextractor:
+  metaextractor:
     volumes:
       - ~/.cache/huggingface/hub:/root/.cache/huggingface/hub # HF cache
       - models:/models # VParse OCR
@@ -157,10 +157,10 @@ text_out = outputs[0].outputs[0].text.strip()
 
 ```bash
 # Build
-docker compose build bookextractor
+docker compose build metaextractor
 
 # Run with GPU
-docker compose up bookextractor
+docker compose up metaextractor
 
 # Test extraction
 curl -X POST http://localhost:8000/extract -F "file=@test.pdf"

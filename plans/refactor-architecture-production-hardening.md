@@ -38,7 +38,7 @@ Each commit leaves the codebase in a working state with passing tests.
 - The outer method guard already handles this.
 
 **Commit 2: Extract prompt strings to `prompts.py`**
-- Create `bookextractor/prompts.py` with module-level constants:
+- Create `metaextractor/prompts.py` with module-level constants:
   - `BOOK_EXTRACTION_PROMPT` (from `extract_semantic_fields`)
   - `MAGAZINE_EXTRACTION_PROMPT` (from `extract_magazine_semantic_fields`)
   - `IMAGE_ANALYSIS_PROMPT` (from `describe_image`)
@@ -46,12 +46,12 @@ Each commit leaves the codebase in a working state with passing tests.
 - No prompt content changes -- pure mechanical extraction.
 
 **Commit 3: Extract `ContentDetector` from pipeline**
-- Create `bookextractor/content_detector.py` with a `detect_content_type(text) -> str` function.
+- Create `metaextractor/content_detector.py` with a `detect_content_type(text) -> str` function.
 - Move all magazine pattern detection logic (Telugu + English patterns) into it.
 - Remove `ExtractionPipeline._detect_content_type` and delegate to the new function.
 
 **Commit 4: Extract `ConfidenceScorer` from pipeline**
-- Create `bookextractor/confidence_scorer.py` with `calculate_book_confidence()` and `calculate_magazine_confidence()`.
+- Create `metaextractor/confidence_scorer.py` with `calculate_book_confidence()` and `calculate_magazine_confidence()`.
 - Move `calculate_confidence` out of `ExtractionPipeline`.
 - The module handles both `ConfidenceScores` and `MagazineConfidenceScores` construction.
 
@@ -63,7 +63,7 @@ Each commit leaves the codebase in a working state with passing tests.
 ### Phase 2 — New abstractions
 
 **Commit 6: Create `LLMBackend` interface with text and vision implementations**
-- Define `LLMBackend` ABC in a new `bookextractor/llm_backend.py`.
+- Define `LLMBackend` ABC in a new `metaextractor/llm_backend.py`.
 - Two implementations:
   - `TextLLMBackend`: for metadata extraction (book/magazine). Default `temperature=0.7`, `max_tokens=512`.
   - `VisionLLMBackend`: for image description. Default `temperature=0.2`, `max_tokens=512`, multimodal input.
@@ -71,7 +71,7 @@ Each commit leaves the codebase in a working state with passing tests.
 - Additive -- no callers use the new interface yet.
 
 **Commit 7: Create `ModelManager` for thread-safe singleton model lifecycle**
-- Create `bookextractor/model_manager.py`.
+- Create `metaextractor/model_manager.py`.
 - Wraps the vLLM `LLM` engine with `threading.Lock`-protected initialization.
 - API:
   - `get_or_create(model_id, max_model_len, config) -> LLM`: thread-safe init.
@@ -112,7 +112,7 @@ Each commit leaves the codebase in a working state with passing tests.
 - The async originals remain for FastAPI direct use.
 
 **Commit 13: Add typed error boundaries**
-- Define `ModelNotAvailableError`, `PromptFailedError`, `ParsingError` in new `bookextractor/exceptions.py`.
+- Define `ModelNotAvailableError`, `PromptFailedError`, `ParsingError` in new `metaextractor/exceptions.py`.
 - Replace bare `except Exception: return {}` in `extract_semantic_fields` and `_extract_magazine_semantic_fields` with specific catches.
 - Pipeline methods propagate errors instead of silently returning null metadata.
 
