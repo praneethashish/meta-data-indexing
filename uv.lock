@@ -2370,7 +2370,6 @@ name = "metaextractor"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "anyllm" },
     { name = "celery" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -2392,7 +2391,6 @@ dependencies = [
     { name = "redis" },
     { name = "typer" },
     { name = "uvicorn" },
-    { name = "vulture" },
 ]
 
 [package.optional-dependencies]
@@ -2421,7 +2419,6 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anyllm", specifier = ">=0.2.4" },
     { name = "anyllm", marker = "extra == 'remote-llm'", specifier = ">=0.2.4" },
     { name = "celery", specifier = ">=5.3.0" },
     { name = "fastapi", specifier = ">=0.100.0" },
@@ -2445,7 +2442,6 @@ requires-dist = [
     { name = "typer", specifier = ">=0.9.0" },
     { name = "uvicorn", specifier = ">=0.22.0" },
     { name = "vllm", marker = "extra == 'ml'", specifier = ">=0.8.0" },
-    { name = "vulture", specifier = ">=2.16" },
 ]
 provides-extras = ["ml", "remote-llm"]
 

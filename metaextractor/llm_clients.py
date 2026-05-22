@@ -93,6 +93,8 @@ class AnyLLMClient(BaseLLMClient):
         self._configure_anyllm(base_url=base_url, api_key=api_key)
 
     def _configure_anyllm(self, base_url: str, api_key: str) -> None:
+        self._original_base_url = os.environ.get("OPENAI_BASE_URL")
+        self._original_api_key = os.environ.get("OPENAI_API_KEY")
         os.environ["OPENAI_BASE_URL"] = base_url
         os.environ["OPENAI_API_KEY"] = api_key
 
@@ -100,6 +102,16 @@ class AnyLLMClient(BaseLLMClient):
         if config is not None and hasattr(config, "set"):
             config.set("openai_base_url", base_url)
             config.set("openai_api_key", api_key)
+
+    def _restore_env(self) -> None:
+        if self._original_base_url is None:
+            os.environ.pop("OPENAI_BASE_URL", None)
+        else:
+            os.environ["OPENAI_BASE_URL"] = self._original_base_url
+        if self._original_api_key is None:
+            os.environ.pop("OPENAI_API_KEY", None)
+        else:
+            os.environ["OPENAI_API_KEY"] = self._original_api_key
 
     def extract_semantic_fields(self, text: str) -> dict[str, Any]:
         prompt = build_extraction_prompt(text)
@@ -121,6 +133,8 @@ class AnyLLMClient(BaseLLMClient):
         except Exception:
             logger.exception("Remote LLM call failed")
             return {}
+        finally:
+            self._restore_env()
 
         content = getattr(response, "content", response)
         if content is None:

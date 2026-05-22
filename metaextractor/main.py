@@ -12,7 +12,7 @@ import uvicorn
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 
 from .config import settings
-from .llm_clients import has_partial_remote_llm_config
+from .llm_clients import has_partial_remote_llm_config, has_remote_llm_config
 from .pipeline import ExtractionPipeline
 from .tasks import celery_app, extract_image_task, extract_pdf_task, extract_text_task
 
@@ -155,14 +155,12 @@ async def _extract_file(
                 "METAEXTRACTOR_LLM_BASE_URL, and METAEXTRACTOR_LLM_API_KEY together."
             )
             raise typer.Exit(code=1)
-        if not has_partial_remote_llm_config() and not has_partial_remote_llm_config():
-            s = __import__("metaextractor.config", fromlist=["settings"]).settings
-            if not (s.METAEXTRACTOR_LLM_MODEL and s.METAEXTRACTOR_LLM_BASE_URL and s.METAEXTRACTOR_LLM_API_KEY):
-                print(
-                    "Error: --backend remote requires METAEXTRACTOR_LLM_MODEL, "
-                    "METAEXTRACTOR_LLM_BASE_URL, and METAEXTRACTOR_LLM_API_KEY to be set."
-                )
-                raise typer.Exit(code=1)
+        if not has_remote_llm_config():
+            print(
+                "Error: --backend remote requires METAEXTRACTOR_LLM_MODEL, "
+                "METAEXTRACTOR_LLM_BASE_URL, and METAEXTRACTOR_LLM_API_KEY to be set."
+            )
+            raise typer.Exit(code=1)
     else:
         if needs_llm and has_partial_remote_llm_config():
             print(

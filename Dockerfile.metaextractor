@@ -1,4 +1,4 @@
-# Dockerfile.metaextractor - BookExtractor FastAPI service with GPU support
+# Dockerfile.metaextractor - MetaExtractor FastAPI service with GPU support
 FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
 
 WORKDIR /app

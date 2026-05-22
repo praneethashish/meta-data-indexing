@@ -1,4 +1,4 @@
-# BookExtractor
+# MetaExtractor
 
 A production-ready Python package for extracting structured metadata from scanned Telugu, Hindi, and English books, magazines, and images.
 
@@ -10,6 +10,7 @@ A production-ready Python package for extracting structured metadata from scanne
 
 - **Multi-format support**: PDF, images (JPG, PNG, WebP, TIFF), text files (MD, JSON, TXT)
 - **vParse OCR integration**: Multilingual OCR via mineru-dots API (English, Telugu, Hindi)
+- **Flexible LLM backend**: Remote HTTP inference (Ollama, HuggingFace, OpenAI) via anyLLM — no GPU required for text extraction
 - **Local VLM inference**: Qwen2.5-VL, Qwen3-VL, Gemma 4, and more via vLLM — data never leaves your machine
 - **Async task queue**: Celery + Redis for background processing with GPU/CPU worker separation
 - **Auto hardware detection**: Optimizes vLLM config for NVIDIA GPU, TPU, Apple Silicon, or CPU
@@ -49,6 +50,15 @@ uv run metaextractor extract input.pdf output.json --benchmark
 
 # Reduce VRAM usage
 uv run metaextractor extract input.pdf output.json --max-model-len 2048
+
+# Force remote LLM (requires METAEXTRACTOR_LLM_* env vars)
+uv run metaextractor extract input.pdf output.json -b remote
+
+# Force local vLLM (ignores remote env vars)
+uv run metaextractor extract input.pdf output.json -b local
+
+# Enable VLM image analysis
+uv run metaextractor extract input.jpg output.json --vlm
 ```
 
 ### Model Management
@@ -162,11 +172,11 @@ Client → FastAPI → Redis Broker → Celery Workers
 
 ### Queue Routing
 
-| File Type | Queue | Worker | LLM |
-|-----------|-------|--------|-----|
-| PDF | `vlm_queue` | worker-gpu | Yes |
-| Text/JSON/MD | `vlm_queue` | worker-gpu | Yes |
-| Images | `default_queue` | worker-cpu | No |
+| File Type | Queue | Worker | LLM | GPU Required |
+|-----------|-------|--------|-----|-------------|
+| PDF | `vlm_queue` | worker-gpu | Yes (anyLLM or vLLM) | Only if vLLM |
+| Text/JSON/MD | `vlm_queue` | worker-gpu | Yes (anyLLM or vLLM) | Only if vLLM |
+| Images | `default_queue` | worker-cpu | No | No |
 
 ### Supported Models
 
@@ -194,6 +204,35 @@ Client → FastAPI → Redis Broker → Celery Workers
 | `VLLM_DTYPE` | Model precision | Auto-optimized |
 | `VLLM_GPU_MEMORY_UTILIZATION` | GPU memory fraction (0.0-1.0) | Auto-optimized |
 | `VLLM_TENSOR_PARALLEL_SIZE` | Number of GPUs (or `auto`) | Auto-optimized |
+
+### Remote LLM (anyLLM)
+
+Configure remote HTTP-based inference to avoid needing a local GPU for text extraction:
+
+```env
+METAEXTRACTOR_LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
+METAEXTRACTOR_LLM_BASE_URL=https://api-inference.huggingface.co/v1
+METAEXTRACTOR_LLM_API_KEY=hf_your-key-here
+METAEXTRACTOR_LLM_PROVIDER=openai
+```
+
+**Ollama example:**
+```env
+METAEXTRACTOR_LLM_MODEL=qwen2.5:7b
+METAEXTRACTOR_LLM_BASE_URL=http://localhost:11434/v1
+METAEXTRACTOR_LLM_API_KEY=ollama
+METAEXTRACTOR_LLM_PROVIDER=openai
+```
+
+**Backend selection:**
+
+| Mode | Flag | Behavior |
+|------|------|----------|
+| Auto (default) | `-b auto` | Uses remote LLM if env vars set, falls back to local vLLM |
+| Remote | `-b remote` | Forces anyLLM (requires env vars) |
+| Local | `-b local` | Forces local vLLM (ignores remote env vars) |
+
+**Note:** Remote LLM is text-only. Image VLM analysis (`describe_image()`) still requires local vLLM on GPU.
 
 ## Development
 

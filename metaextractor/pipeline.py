@@ -152,7 +152,7 @@ class ExtractionPipeline:
         # LLM Semantic Extraction
         try:
             llm_result = self.extract_semantic_fields(text)
-        except ParsingError as e:
+        except (ParsingError, RuntimeError) as e:
             logger.warning(f"Book metadata extraction failed: {e}")
             llm_result = {}
 
@@ -204,7 +204,7 @@ class ExtractionPipeline:
         # LLM Semantic Extraction for magazines
         try:
             llm_result = self.extract_magazine_semantic_fields(text, lang=lang)
-        except ParsingError as e:
+        except (ParsingError, RuntimeError) as e:
             logger.warning(f"Magazine metadata extraction failed: {e}")
             llm_result = {}
 
